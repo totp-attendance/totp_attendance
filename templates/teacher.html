@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ s.name }} - 교사{% endblock %}
+{% block style %}
+ body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;text-align:center}
+ .code{font-size:4rem;font-weight:700;letter-spacing:.3rem;font-variant-numeric:tabular-nums}
+ .bar{height:8px;background:#eee;border-radius:4px;overflow:hidden;margin:12px 0}
+ .bar>div{height:100%;background:#06c;transition:width 1s linear}
+ img{margin:16px 0} .muted{color:#888;font-size:.9rem}
+ a{color:#06c}
+{% endblock %}
+{% block body %}
+<h2>{{ s.name }}</h2>
+{% if s.geo_radius %}<p class="muted">📍 위치 제한 ON (반경 {{ s.geo_radius }}m)</p>{% endif %}
+<p class="muted">개인 TOTP 방식 — 학생은 <b>본인 인증앱 코드</b> 입력 (사전 등록 필요)</p>
+<p class="muted" style="font-size:2rem"><span id="cnt">0</span>명 출석</p>
+<hr>
+{% if s.require_qr %}
+<p class="muted">현장 확인 ON — 학생은 <b>이 화면의 회전 QR</b>을 스캔해야 출석됨 (원격 차단)</p>
+<img id="qr" src="{{ url_for('sessions.qr_challenge', session_id=s.id) }}" width="240" height="240">
+<p class="muted">QR 자동 회전 ({{ qr_rotate }}초) — 화면 띄워두기</p>
+{% else %}
+<p class="muted">학생용 출석 링크 (고정 QR)</p>
+<img id="qr" src="{{ url_for('sessions.qr', session_id=s.id) }}" width="180" height="180">
+<p><a href="{{ check_url }}">{{ check_url }}</a></p>
+{% endif %}
+<p><a href="{{ url_for('sessions.roster', session_id=s.id) }}">출석부</a> ·
+   <a href="{{ url_for('students.index') }}">학생관리</a> ·
+   <a href="{{ url_for('auth.logout') }}">로그아웃</a></p>
+{% endblock %}
+{% block script %}
+<script>
+const SID = {{ s.id }};
+const REQUIRE_QR = {{ 'true' if s.require_qr else 'false' }};
+const ROTATE = {{ qr_rotate }};
+async function tick(){
+  const r = await fetch(`/api/code/${SID}`);
+  const d = await r.json();
+  document.getElementById('cnt').textContent = d.count;
+}
+tick(); setInterval(tick, 2000);
+// 회전 QR: 주기마다 이미지 새로 로드 (캐시 무력화 쿼리)
+if(REQUIRE_QR){
+  setInterval(()=>{
+    document.getElementById('qr').src = `/qrc/${SID}?t=` + Date.now();
+  }, ROTATE * 1000);
+}
+</script>
+{% endblock %}

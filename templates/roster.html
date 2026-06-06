@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ s.name }} - 출석부{% endblock %}
+{% block style %}
+ body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px}
+ table{width:100%;border-collapse:collapse;margin-top:16px}
+ td,th{border:1px solid #ddd;padding:8px;text-align:left}
+ a,button{font-size:1rem} form{display:inline} a{color:#06c}
+{% endblock %}
+{% block body %}
+<h2>{{ s.name }} 출석부 ({{ rows|length }}명)</h2>
+<p>
+ <a href="{{ url_for('sessions.export_csv', session_id=s.id) }}">CSV 내보내기</a> ·
+ <a href="{{ url_for('sessions.teacher', session_id=s.id) }}">교사화면</a> ·
+ <a href="{{ url_for('sessions.index') }}">목록</a> ·
+ <a href="{{ url_for('auth.logout') }}">로그아웃</a> ·
+ <form method="post" action="{{ url_for('sessions.toggle', session_id=s.id) }}">
+   <button>{{ '세션 닫기' if s.open else '세션 열기' }}</button>
+ </form>
+</p>
+<table>
+ <tr><th>#</th><th>학번</th><th>이름</th><th>시각</th><th>IP</th><th>위치</th></tr>
+ {% for r in rows %}
+ <tr><td>{{ loop.index }}</td><td>{{ r.student_id }}</td>
+     <td>{{ r.student_name }}</td><td>{{ r.checked_at }}</td>
+     <td>{{ r.ip or '-' }}</td>
+     <td>{% if r.lat is not none %}{{ '%.5f'|format(r.lat) }}, {{ '%.5f'|format(r.lon) }}{% else %}-{% endif %}</td></tr>
+ {% endfor %}
+</table>
+{% endblock %}

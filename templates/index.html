@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}출석 - 세션{% endblock %}
+{% block style %}
+ body{font-family:system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px}
+ h1{font-size:1.4rem} fieldset{margin:16px 0;border:1px solid #ddd;border-radius:6px}
+ .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+ input,button,select{padding:8px;font-size:1rem} button{cursor:pointer}
+ table{width:100%;border-collapse:collapse;margin-top:16px}
+ td,th{border:1px solid #ddd;padding:8px;text-align:left}
+ a{color:#06c} .closed{color:#999} label{font-size:.9rem;color:#555}
+ .geo{display:none} .geo.on{display:flex}
+{% endblock %}
+{% block body %}
+<h1>출석 세션</h1>
+<p><a href="{{ url_for('students.index') }}">학생 관리(개인 TOTP 등록)</a> ·
+   <a href="{{ url_for('auth.logout') }}">로그아웃</a></p>
+<form method="post" action="{{ url_for('sessions.create') }}">
+ <fieldset>
+  <legend>새 세션</legend>
+  <div class="row">
+    <input name="name" placeholder="수업 이름 (예: 6/6 1교시)" required style="flex:1">
+  </div>
+  <div class="row">
+    <label>개인 TOTP 방식 — 학생은 본인 인증앱 코드로 출석 (사전 등록 필요)</label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" name="require_qr" value="1" checked> 현장 확인 (교실 화면 회전 QR 스캔 필수 — 원격 차단)</label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="geochk"> 위치 제한(지오펜스)</label>
+  </div>
+  <div class="row geo" id="georow">
+    <input name="geo_lat" id="geo_lat" type="number" step="any" placeholder="위도 lat" style="width:130px">
+    <input name="geo_lon" id="geo_lon" type="number" step="any" placeholder="경도 lon" style="width:130px">
+    <input name="geo_radius" type="number" placeholder="반경(m)" value="100" style="width:100px">
+    <button type="button" id="here">현재 위치 사용</button>
+  </div>
+  <div class="row"><button>세션 생성</button></div>
+ </fieldset>
+</form>
+<table>
+ <tr><th>ID</th><th>이름</th><th>GPS</th><th>생성</th><th>상태</th><th>링크</th></tr>
+ {% for s in sessions %}
+ <tr>
+  <td>{{ s.id }}</td><td>{{ s.name }}</td>
+  <td>{{ '📍' if s.geo_radius else '-' }}</td>
+  <td>{{ s.created_at }}</td>
+  <td class="{{ '' if s.open else 'closed' }}">{{ '열림' if s.open else '닫힘' }}</td>
+  <td>
+    <a href="{{ url_for('sessions.teacher', session_id=s.id) }}">교사화면</a> ·
+    <a href="{{ url_for('sessions.roster', session_id=s.id) }}">출석부</a>
+  </td>
+ </tr>
+ {% endfor %}
+</table>
+{% endblock %}
+{% block script %}
+<script>
+ const chk=document.getElementById('geochk'), row=document.getElementById('georow');
+ chk.onchange=()=>row.classList.toggle('on',chk.checked);
+ document.getElementById('here').onclick=()=>navigator.geolocation.getCurrentPosition(p=>{
+   document.getElementById('geo_lat').value=p.coords.latitude.toFixed(6);
+   document.getElementById('geo_lon').value=p.coords.longitude.toFixed(6);
+ }, e=>alert('위치 가져오기 실패: '+e.message));
+</script>
+{% endblock %}

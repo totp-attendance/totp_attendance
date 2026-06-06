@@ -1,0 +1,11 @@
+# 비밀 / 로컬 데이터
+.env
+attendance.db
+
+# 파이썬
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 개발 산출물
+_shots/

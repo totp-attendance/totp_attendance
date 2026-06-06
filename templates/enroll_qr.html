@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ st.name }} 등록 QR{% endblock %}
+{% block style %}
+ body{font-family:system-ui,sans-serif;max-width:480px;margin:40px auto;padding:0 16px;text-align:center}
+ a{color:#06c} .muted{color:#888;font-size:.9rem} code{background:#f2f2f2;padding:2px 6px;border-radius:4px}
+{% endblock %}
+{% block body %}
+<h2>{{ st.name }} ({{ st.student_id }})</h2>
+<p class="muted">아래 QR을 <b>Google Authenticator</b> / <b>Authy</b> 등으로 스캔</p>
+<img src="{{ url_for('students.qr_png', student_id=st.student_id) }}" width="220" height="220">
+<p class="muted">수동 입력 키: <code>{{ st.secret }}</code></p>
+<p class="muted">{{ '신규 등록됨' if is_new else '이미 등록된 학생 (기존 키 유지)' }}</p>
+<p><a href="{{ url_for('students.index') }}">← 학생 목록</a></p>
+{% endblock %}

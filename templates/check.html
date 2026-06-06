@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ s.name }} - 출석{% endblock %}
+{% block style %}
+ body{font-family:system-ui,sans-serif;max-width:420px;margin:40px auto;padding:0 16px}
+ h2{font-size:1.3rem} label{display:block;margin:12px 0 4px}
+ input{width:100%;padding:10px;font-size:1.1rem;box-sizing:border-box}
+ button{margin-top:16px;width:100%;padding:12px;font-size:1.1rem;cursor:pointer}
+ .msg{padding:12px;border-radius:6px;margin:12px 0}
+ .ok{background:#e6f4ea;color:#137333} .err{background:#fce8e6;color:#c5221f}
+ .code-in{letter-spacing:.3rem;text-align:center;font-variant-numeric:tabular-nums}
+{% endblock %}
+{% block body %}
+<h2>{{ s.name }} 출석</h2>
+<p style="color:#555">본인 인증앱(Google Authenticator 등) 코드 입력</p>
+{% if s.geo_radius %}<p style="color:#555">📍 위치 확인 필요 (반경 {{ s.geo_radius }}m)</p>{% endif %}
+{% if s.require_qr and not challenge %}
+<div class="msg err">교실 화면의 회전 QR을 카메라로 스캔해 들어와야 출석할 수 있습니다.</div>
+{% endif %}
+{% if msg %}<div class="msg {{ cls }}">{{ msg }}</div>{% endif %}
+{% if s.open %}
+<form method="post" id="f">
+  <input type="hidden" name="c" value="{{ challenge }}">
+  <label>학번</label>
+  <input name="student_id" required autocomplete="off" value="{{ sid_val }}">
+  <label>본인 인증앱 코드 (6자리)</label>
+  <input name="code" class="code-in" inputmode="numeric" pattern="[0-9]*" maxlength="6" required>
+  <input type="hidden" name="lat" id="lat"><input type="hidden" name="lon" id="lon">
+  <button id="btn">출석하기</button>
+  <p class="muted" id="geostat" style="color:#888;font-size:.85rem"></p>
+</form>
+{% endif %}
+{% if not s.open %}
+<p>이 세션은 닫혔습니다.</p>
+{% endif %}
+{% endblock %}
+{% block script %}
+{% if s.open and s.geo_radius %}
+<script>
+ const btn=document.getElementById('btn'), stat=document.getElementById('geostat');
+ btn.disabled=true; stat.textContent='위치 확인 중...';
+ navigator.geolocation.getCurrentPosition(p=>{
+   document.getElementById('lat').value=p.coords.latitude;
+   document.getElementById('lon').value=p.coords.longitude;
+   btn.disabled=false; stat.textContent='위치 확인됨';
+ }, e=>{ stat.textContent='위치 권한 필요: '+e.message; },
+ {enableHighAccuracy:true, timeout:10000});
+</script>
+{% endif %}
+{% endblock %}
