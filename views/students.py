@@ -1,4 +1,6 @@
-"""학생 개인 TOTP 등록 — 목록·등록·등록QR·삭제."""
+"""학생 개인 TOTP 등록 — 목록·등록·등록QR(기기저장)·삭제."""
+from urllib.parse import urlencode
+
 import pyotp
 from flask import (
     Blueprint, request, redirect, url_for, render_template, abort,
@@ -41,6 +43,21 @@ def qr(student_id):
 @bp.route("/student/<student_id>/qr.png")
 @require_teacher
 def qr_png(student_id):
+    """기기 등록 QR — 학생 폰 카메라로 스캔 시 /setup 열려 브라우저에 secret 저장.
+    (Google Authenticator 쓰려면 enroll 페이지의 수동키 입력)"""
+    st = db.get_student(student_id)
+    if not st:
+        abort(404)
+    setup_url = url_for("students.setup", _external=True)
+    query = urlencode({"sid": st["student_id"], "name": st["name"],
+                       "s": st["secret"]})
+    return png_response(f"{setup_url}?{query}")
+
+
+@bp.route("/student/<student_id>/otpauth.png")
+@require_teacher
+def otpauth_png(student_id):
+    """Google Authenticator 용 otpauth QR (앱 사용자 폴백)."""
     st = db.get_student(student_id)
     if not st:
         abort(404)
@@ -48,6 +65,12 @@ def qr_png(student_id):
         name=st["student_id"], issuer_name=config.TOTP_ISSUER
     )
     return png_response(uri)
+
+
+@bp.route("/setup")
+def setup():
+    """학생 기기 등록 페이지 (공개). 쿼리의 sid/name/secret 을 JS 가 localStorage 에 저장."""
+    return render_template("setup.html")
 
 
 @bp.route("/student/<student_id>/delete", methods=["POST"])

@@ -133,6 +133,35 @@ def test_enroll_qr_png(teacher):
     assert r.status_code == 200 and r.mimetype == "image/png"
 
 
+# --- 기기 등록(setup) + 자동출석(AJAX) --------------------------------------
+def test_setup_page_public(client):
+    # 학생 기기 등록 페이지는 로그인 없이 열림 (JS 가 secret 저장)
+    r = client.get("/setup?sid=1&name=A&s=ABCD")
+    assert r.status_code == 200
+
+
+def test_ajax_checkin_returns_json(teacher):
+    secret = enroll(teacher, "s1", "학생1")
+    sid = make_session(teacher)
+    pub = appmod.app.test_client()
+    r = pub.post(f"/check/{sid}",
+                 data={"student_id": "s1", "code": code_of(secret)},
+                 headers={"X-Requested-With": "fetch"})
+    assert r.is_json
+    body = r.get_json()
+    assert body["ok"] is True and "출석 완료" in body["msg"]
+
+
+def test_ajax_wrong_code_json_not_ok(teacher):
+    enroll(teacher, "s1", "학생1")
+    sid = make_session(teacher)
+    pub = appmod.app.test_client()
+    r = pub.post(f"/check/{sid}",
+                 data={"student_id": "s1", "code": "000000"},
+                 headers={"X-Requested-With": "fetch"})
+    assert r.is_json and r.get_json()["ok"] is False
+
+
 # --- 지오펜스 ---------------------------------------------------------------
 def test_geofence_within_and_outside(teacher):
     secret = enroll(teacher, "g1", "X")

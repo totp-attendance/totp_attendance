@@ -1,6 +1,6 @@
 """학생 출석 체크 — 개인 TOTP + 지오펜스 + 레이트리밋."""
 import pyotp
-from flask import Blueprint, request, render_template, abort
+from flask import Blueprint, request, render_template, jsonify, abort
 
 import db
 import config
@@ -74,6 +74,10 @@ def check(session_id):
                 sid_val = ""
             else:
                 msg, cls = "이미 출석 처리됨.", "ok"
+
+        # 자동 출석(fetch)은 JSON 응답 → 페이지 이동 없음(루프 방지)
+        if request.headers.get("X-Requested-With") == "fetch":
+            return jsonify(msg=msg, cls=cls, ok=(cls == "ok"))
 
     return render_template("check.html", s=s, msg=msg, cls=cls,
                            sid_val=sid_val, challenge=challenge)
