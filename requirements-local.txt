@@ -1,0 +1,5 @@
+# 로컬 개발/테스트 — SQLCipher 파일 암호화 + waitress.
+# 설치: pip install -r requirements-local.txt
+-r requirements.txt
+sqlcipher3>=0.6.2
+waitress>=3.0

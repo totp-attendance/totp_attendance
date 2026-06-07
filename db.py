@@ -1,107 +1,211 @@
-"""SQLCipher 저장소. 세션·학생·출석 — DB 파일 전체 암호화."""
+"""저장소 — 이중 백엔드.
+
+DATABASE_URL 있으면 PostgreSQL(psycopg, 예: Neon/Vercel), 없으면 로컬
+SQLCipher(파일 전체 암호화). 함수 API 는 동일 → 상위(views) 무수정.
+
+민감 컬럼(students.secret = 개인 TOTP 시드)은 ATTENDANCE_FIELD_KEY 가 있으면
+앱단에서 Fernet 암호화 저장(Postgres 는 SQLCipher 같은 전체파일 암호화가 없으므로).
+키 없으면 평문(로컬/테스트 — SQLCipher 가 파일째 암호화).
+"""
 import os
 import sys
+import base64
+import hashlib
 from contextlib import contextmanager
 
-from sqlcipher3 import dbapi2 as sqlcipher
+DATABASE_URL = os.environ.get("DATABASE_URL")
+PG = bool(DATABASE_URL)
+
+if PG:
+    import psycopg
+    from psycopg.rows import dict_row
+    _INTEGRITY = (psycopg.errors.IntegrityError,)
+else:
+    from sqlcipher3 import dbapi2 as sqlcipher
+    _INTEGRITY = (sqlcipher.IntegrityError,)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "attendance.db")
 
-# 암호화 키: 환경변수 우선. 없으면 개발용 기본키 + 경고.
-# 운영 시 반드시 ATTENDANCE_DB_KEY 설정 (키 분실 = DB 복구 불가).
+# SQLCipher 파일 암호화 키 (로컬 백엔드 전용)
 _DEV_KEY = "dev-insecure-change-me"
 DB_KEY = os.environ.get("ATTENDANCE_DB_KEY")
-if not DB_KEY:
+if not PG and not DB_KEY:
     DB_KEY = _DEV_KEY
-    print(
-        "[WARN] ATTENDANCE_DB_KEY 미설정 — 개발용 기본키 사용. "
-        "운영 시 환경변수로 강한 키 지정하세요.",
-        file=sys.stderr,
-    )
+    print("[WARN] ATTENDANCE_DB_KEY 미설정 — 개발용 기본키 사용. "
+          "운영 시 환경변수로 강한 키 지정하세요.", file=sys.stderr)
 
 
+# --- 민감 컬럼 암호화 (Fernet, 키 있을 때만) --------------------------------
+_FIELD_KEY = os.environ.get("ATTENDANCE_FIELD_KEY")
+if _FIELD_KEY:
+    from cryptography.fernet import Fernet
+    # 임의 문자열 → 안정적인 32B Fernet 키 (urlsafe base64)
+    _fernet = Fernet(base64.urlsafe_b64encode(
+        hashlib.sha256(_FIELD_KEY.encode()).digest()))
+else:
+    _fernet = None
+if PG and not _FIELD_KEY:
+    print("[WARN] ATTENDANCE_FIELD_KEY 미설정 — Postgres 에서 개인 TOTP 시드가 "
+          "평문 저장됩니다. 운영 시 반드시 설정.", file=sys.stderr)
+
+
+def _enc(plain):
+    if _fernet is None or plain is None:
+        return plain
+    return _fernet.encrypt(plain.encode()).decode()
+
+
+def _dec(stored):
+    if _fernet is None or stored is None:
+        return stored
+    try:
+        return _fernet.decrypt(stored.encode()).decode()
+    except Exception:
+        return stored  # 평문(미암호화 기존값) 호환
+
+
+# --- 연결 -------------------------------------------------------------------
 def _key_pragma(value):
-    # PRAGMA key 값은 작은따옴표 escape (SQL 인젝션 방지)
     return "PRAGMA key = '{}'".format(value.replace("'", "''"))
 
 
 @contextmanager
 def get_conn():
-    conn = sqlcipher.connect(DB_PATH)
-    conn.row_factory = sqlcipher.Row
-    # 키는 모든 쿼리보다 먼저 적용해야 함
-    conn.execute(_key_pragma(DB_KEY))
-    conn.execute("PRAGMA foreign_keys = ON")
+    if PG:
+        conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    else:
+        conn = sqlcipher.connect(DB_PATH)
+        conn.row_factory = sqlcipher.Row
+        conn.execute(_key_pragma(DB_KEY))      # 키는 모든 쿼리보다 먼저
+        conn.execute("PRAGMA foreign_keys = ON")
     try:
         yield conn
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
 
+def _ph(sql):
+    """플레이스홀더: 코드엔 ? 로 쓰고 Postgres 면 %s 로 변환."""
+    return sql.replace("?", "%s") if PG else sql
+
+
+def _q1(conn, sql, params=()):
+    row = conn.execute(_ph(sql), params).fetchone()
+    return dict(row) if row else None
+
+
+def _qa(conn, sql, params=()):
+    return [dict(r) for r in conn.execute(_ph(sql), params).fetchall()]
+
+
+def _ex(conn, sql, params=()):
+    conn.execute(_ph(sql), params)
+
+
+def _ins(conn, sql, params=()):
+    """INSERT 후 새 id 반환 (PG: RETURNING id / SQLite: lastrowid)."""
+    if PG:
+        return conn.execute(_ph(sql) + " RETURNING id", params).fetchone()["id"]
+    return conn.execute(sql, params).lastrowid
+
+
+# --- 스키마 -----------------------------------------------------------------
+_DDL_SQLITE = [
+    """CREATE TABLE IF NOT EXISTS teachers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        pw_hash TEXT NOT NULL,
+        is_admin INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))""",
+    """CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        secret TEXT NOT NULL,
+        "interval" INTEGER NOT NULL DEFAULT 30,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        open INTEGER NOT NULL DEFAULT 1,
+        mode TEXT NOT NULL DEFAULT 'session',
+        geo_lat REAL, geo_lon REAL, geo_radius INTEGER,
+        require_qr INTEGER NOT NULL DEFAULT 0,
+        owner_id INTEGER)""",
+    """CREATE TABLE IF NOT EXISTS students (
+        student_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        secret TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))""",
+    """CREATE TABLE IF NOT EXISTS attendance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL REFERENCES sessions(id),
+        student_id TEXT NOT NULL,
+        student_name TEXT,
+        checked_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        ip TEXT, lat REAL, lon REAL,
+        UNIQUE(session_id, student_id))""",
+]
+
+_DDL_PG = [
+    """CREATE TABLE IF NOT EXISTS teachers (
+        id SERIAL PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        pw_hash TEXT NOT NULL,
+        is_admin INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now())""",
+    """CREATE TABLE IF NOT EXISTS sessions (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        secret TEXT NOT NULL,
+        "interval" INTEGER NOT NULL DEFAULT 30,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        open INTEGER NOT NULL DEFAULT 1,
+        mode TEXT NOT NULL DEFAULT 'session',
+        geo_lat DOUBLE PRECISION, geo_lon DOUBLE PRECISION, geo_radius INTEGER,
+        require_qr INTEGER NOT NULL DEFAULT 0,
+        owner_id INTEGER)""",
+    """CREATE TABLE IF NOT EXISTS students (
+        student_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        secret TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now())""",
+    """CREATE TABLE IF NOT EXISTS attendance (
+        id SERIAL PRIMARY KEY,
+        session_id INTEGER NOT NULL REFERENCES sessions(id),
+        student_id TEXT NOT NULL,
+        student_name TEXT,
+        checked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        ip TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION,
+        UNIQUE(session_id, student_id))""",
+]
+
+
 def init_db():
     with get_conn() as conn:
-        conn.executescript(
-            """
-            -- 교사 계정 (관리자 / 일반)
-            CREATE TABLE IF NOT EXISTS teachers (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                username    TEXT    NOT NULL UNIQUE,
-                pw_hash     TEXT    NOT NULL,
-                is_admin    INTEGER NOT NULL DEFAULT 0,
-                created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
-            );
-
-            CREATE TABLE IF NOT EXISTS sessions (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                name        TEXT    NOT NULL,
-                secret      TEXT    NOT NULL,
-                interval    INTEGER NOT NULL DEFAULT 30,
-                created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
-                open        INTEGER NOT NULL DEFAULT 1,
-                mode        TEXT    NOT NULL DEFAULT 'session',
-                geo_lat     REAL,
-                geo_lon     REAL,
-                geo_radius  INTEGER,
-                require_qr  INTEGER NOT NULL DEFAULT 0,
-                owner_id    INTEGER
-            );
-
-            -- 학생별 개인 TOTP 등록 (전역, 세션과 무관)
-            CREATE TABLE IF NOT EXISTS students (
-                student_id  TEXT PRIMARY KEY,
-                name        TEXT NOT NULL,
-                secret      TEXT NOT NULL,
-                created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-            );
-
-            CREATE TABLE IF NOT EXISTS attendance (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id  INTEGER NOT NULL REFERENCES sessions(id),
-                student_id  TEXT    NOT NULL,
-                student_name TEXT,
-                checked_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
-                ip          TEXT,
-                lat         REAL,
-                lon         REAL,
-                UNIQUE(session_id, student_id)
-            );
-            """
-        )
+        for ddl in (_DDL_PG if PG else _DDL_SQLITE):
+            conn.execute(ddl)
         _migrate(conn)
 
 
 def _migrate(conn):
-    """기존 DB에 누락 컬럼 추가 (SQLite는 컬럼 IF NOT EXISTS 없음 → pragma 확인)."""
+    """구버전 DB 누락 컬럼 보강."""
+    if PG:
+        for stmt in [
+            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS require_qr INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS owner_id INTEGER",
+            "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS ip TEXT",
+            "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION",
+            "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS lon DOUBLE PRECISION",
+        ]:
+            conn.execute(stmt)
+        return
+    # SQLite: 컬럼 IF NOT EXISTS 없음 → pragma 확인 후 ALTER
     def cols(table):
-        return {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
-
+        return {r[1] for r in conn.execute(
+            f"PRAGMA table_info({table})").fetchall()}
     add = {
         "sessions": {
-            "mode": "ALTER TABLE sessions ADD COLUMN mode TEXT NOT NULL DEFAULT 'session'",
-            "geo_lat": "ALTER TABLE sessions ADD COLUMN geo_lat REAL",
-            "geo_lon": "ALTER TABLE sessions ADD COLUMN geo_lon REAL",
-            "geo_radius": "ALTER TABLE sessions ADD COLUMN geo_radius INTEGER",
             "require_qr": "ALTER TABLE sessions ADD COLUMN require_qr INTEGER NOT NULL DEFAULT 0",
             "owner_id": "ALTER TABLE sessions ADD COLUMN owner_id INTEGER",
         },
@@ -121,195 +225,170 @@ def _migrate(conn):
 # --- 교사 계정 --------------------------------------------------------------
 def count_teachers():
     with get_conn() as conn:
-        return conn.execute("SELECT count(*) FROM teachers").fetchone()[0]
+        return _q1(conn, "SELECT count(*) AS n FROM teachers")["n"]
 
 
 def create_teacher(username, pw_hash, is_admin=0):
-    """교사 계정 생성. username 중복이면 IntegrityError → None 반환."""
+    """교사 계정 생성. username 중복이면 None."""
     with get_conn() as conn:
         try:
-            cur = conn.execute(
-                "INSERT INTO teachers (username, pw_hash, is_admin) VALUES (?, ?, ?)",
-                (username.strip(), pw_hash, 1 if is_admin else 0),
-            )
-            return cur.lastrowid
-        except sqlcipher.IntegrityError:
+            return _ins(conn,
+                        "INSERT INTO teachers (username, pw_hash, is_admin) "
+                        "VALUES (?, ?, ?)",
+                        (username.strip(), pw_hash, 1 if is_admin else 0))
+        except _INTEGRITY:
+            conn.rollback()
             return None
 
 
 def get_teacher_by_username(username):
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM teachers WHERE username = ?", (username.strip(),)
-        ).fetchone()
-        return dict(row) if row else None
+        return _q1(conn, "SELECT * FROM teachers WHERE username = ?",
+                   (username.strip(),))
 
 
 def get_teacher(teacher_id):
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM teachers WHERE id = ?", (teacher_id,)
-        ).fetchone()
-        return dict(row) if row else None
+        return _q1(conn, "SELECT * FROM teachers WHERE id = ?", (teacher_id,))
 
 
 def list_teachers():
     with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM teachers ORDER BY is_admin DESC, username"
-        ).fetchall()
-        return [dict(r) for r in rows]
+        return _qa(conn,
+                   "SELECT * FROM teachers ORDER BY is_admin DESC, username")
 
 
 def set_teacher_password(teacher_id, pw_hash):
     with get_conn() as conn:
-        conn.execute("UPDATE teachers SET pw_hash = ? WHERE id = ?",
-                     (pw_hash, teacher_id))
+        _ex(conn, "UPDATE teachers SET pw_hash = ? WHERE id = ?",
+            (pw_hash, teacher_id))
 
 
 def delete_teacher(teacher_id):
     with get_conn() as conn:
-        conn.execute("DELETE FROM teachers WHERE id = ?", (teacher_id,))
+        _ex(conn, "DELETE FROM teachers WHERE id = ?", (teacher_id,))
 
 
 def count_admins():
     with get_conn() as conn:
-        return conn.execute(
-            "SELECT count(*) FROM teachers WHERE is_admin = 1"
-        ).fetchone()[0]
+        return _q1(conn,
+                   "SELECT count(*) AS n FROM teachers WHERE is_admin = 1")["n"]
 
 
 # --- 세션 ------------------------------------------------------------------
 def create_session(name, secret, interval=30, mode="session",
                    geo_lat=None, geo_lon=None, geo_radius=None, require_qr=0,
                    owner_id=None):
+    # interval/mode 는 dead 컬럼 → 기본값 사용(예약어 회피 위해 INSERT 안 함)
     with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO sessions "
-            "(name, secret, interval, mode, geo_lat, geo_lon, geo_radius, "
-            "require_qr, owner_id) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (name, secret, interval, mode, geo_lat, geo_lon, geo_radius,
-             1 if require_qr else 0, owner_id),
-        )
-        return cur.lastrowid
+        return _ins(conn,
+                    "INSERT INTO sessions "
+                    "(name, secret, geo_lat, geo_lon, geo_radius, require_qr, owner_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (name, secret, geo_lat, geo_lon, geo_radius,
+                     1 if require_qr else 0, owner_id))
 
 
 def backfill_session_owner(owner_id):
     """소유자 없는(구버전) 세션을 지정 교사 소유로. 업그레이드 1회용."""
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE sessions SET owner_id = ? WHERE owner_id IS NULL", (owner_id,)
-        )
+        _ex(conn, "UPDATE sessions SET owner_id = ? WHERE owner_id IS NULL",
+            (owner_id,))
 
 
 def reassign_sessions(from_owner, to_owner):
-    """교사 삭제 시 그 세션을 다른 교사에게 인계 (출석 데이터 보존)."""
+    """교사 삭제 시 세션을 다른 교사에게 인계 (출석 데이터 보존)."""
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE sessions SET owner_id = ? WHERE owner_id = ?",
-            (to_owner, from_owner),
-        )
+        _ex(conn, "UPDATE sessions SET owner_id = ? WHERE owner_id = ?",
+            (to_owner, from_owner))
 
 
 def get_session(session_id):
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM sessions WHERE id = ?", (session_id,)
-        ).fetchone()
-        return dict(row) if row else None
+        return _q1(conn, "SELECT * FROM sessions WHERE id = ?", (session_id,))
 
 
 def list_sessions(owner_id=None):
     """owner_id 주면 해당 교사 세션만, 없으면 전체(관리자용)."""
     with get_conn() as conn:
         if owner_id is None:
-            rows = conn.execute(
-                "SELECT * FROM sessions ORDER BY id DESC").fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM sessions WHERE owner_id = ? ORDER BY id DESC",
-                (owner_id,)).fetchall()
-        return [dict(r) for r in rows]
+            return _qa(conn, "SELECT * FROM sessions ORDER BY id DESC")
+        return _qa(conn,
+                   "SELECT * FROM sessions WHERE owner_id = ? ORDER BY id DESC",
+                   (owner_id,))
 
 
 def set_session_open(session_id, is_open):
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE sessions SET open = ? WHERE id = ?",
-            (1 if is_open else 0, session_id),
-        )
+        _ex(conn, "UPDATE sessions SET open = ? WHERE id = ?",
+            (1 if is_open else 0, session_id))
 
 
 # --- 학생 (개인 TOTP 등록) --------------------------------------------------
 def upsert_student(student_id, name, secret):
-    """신규면 등록, 기존이면 이름만 갱신(secret 유지)."""
+    """신규면 등록, 기존이면 이름만 갱신(secret 유지). secret 은 암호화 저장."""
     sid = student_id.strip()
     with get_conn() as conn:
-        existing = conn.execute(
-            "SELECT secret FROM students WHERE student_id = ?", (sid,)
-        ).fetchone()
+        existing = _q1(conn,
+                       "SELECT secret FROM students WHERE student_id = ?", (sid,))
         if existing:
-            conn.execute(
-                "UPDATE students SET name = ? WHERE student_id = ?",
-                (name.strip(), sid),
-            )
-            return existing["secret"], False  # 기존 secret, 신규아님
-        conn.execute(
+            _ex(conn, "UPDATE students SET name = ? WHERE student_id = ?",
+                (name.strip(), sid))
+            return _dec(existing["secret"]), False  # 기존 secret(복호), 신규아님
+        _ex(conn,
             "INSERT INTO students (student_id, name, secret) VALUES (?, ?, ?)",
-            (sid, name.strip(), secret),
-        )
-        return secret, True  # 새 secret, 신규
+            (sid, name.strip(), _enc(secret)))
+        return secret, True  # 새 secret(평문), 신규
 
 
 def get_student(student_id):
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM students WHERE student_id = ?", (student_id.strip(),)
-        ).fetchone()
-        return dict(row) if row else None
+        row = _q1(conn, "SELECT * FROM students WHERE student_id = ?",
+                  (student_id.strip(),))
+    if row:
+        row["secret"] = _dec(row["secret"])
+    return row
 
 
 def list_students():
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM students ORDER BY student_id").fetchall()
-        return [dict(r) for r in rows]
+        return _qa(conn, "SELECT * FROM students ORDER BY student_id")
 
 
 def delete_student(student_id):
     with get_conn() as conn:
-        conn.execute("DELETE FROM students WHERE student_id = ?", (student_id.strip(),))
+        _ex(conn, "DELETE FROM students WHERE student_id = ?",
+            (student_id.strip(),))
 
 
 # --- 출석 ------------------------------------------------------------------
-def mark_attendance(session_id, student_id, student_name, ip=None, lat=None, lon=None):
+def mark_attendance(session_id, student_id, student_name, ip=None,
+                    lat=None, lon=None):
     """이미 출석했으면 False, 새로 기록하면 True."""
     with get_conn() as conn:
         try:
-            conn.execute(
+            _ex(conn,
                 "INSERT INTO attendance "
                 "(session_id, student_id, student_name, ip, lat, lon) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                (session_id, student_id.strip(), student_name.strip(), ip, lat, lon),
-            )
+                (session_id, student_id.strip(), student_name.strip(),
+                 ip, lat, lon))
             return True
-        except sqlcipher.IntegrityError:
+        except _INTEGRITY:
+            conn.rollback()
             return False
 
 
 def list_attendance(session_id):
     with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM attendance WHERE session_id = ? ORDER BY checked_at",
-            (session_id,),
-        ).fetchall()
-        return [dict(r) for r in rows]
+        return _qa(conn,
+                   "SELECT * FROM attendance WHERE session_id = ? "
+                   "ORDER BY checked_at", (session_id,))
 
 
 def already_checked(session_id, student_id):
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT 1 FROM attendance WHERE session_id = ? AND student_id = ?",
-            (session_id, student_id.strip()),
-        ).fetchone()
-        return row is not None
+        return _q1(conn,
+                   "SELECT 1 AS x FROM attendance "
+                   "WHERE session_id = ? AND student_id = ?",
+                   (session_id, student_id.strip())) is not None

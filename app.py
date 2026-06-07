@@ -40,7 +40,7 @@ def create_app():
     app.config.update(
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Strict",
-        SESSION_COOKIE_SECURE=config.USE_SSL,
+        SESSION_COOKIE_SECURE=config.HTTPS,
     )
     db.init_db()
     bootstrap_admin()

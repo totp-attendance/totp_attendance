@@ -151,3 +151,5 @@ DEBUG = os.environ.get("ATTENDANCE_DEBUG") == "1"
 PORT = int(os.environ.get("ATTENDANCE_PORT", "5000"))
 # ATTENDANCE_SSL=1 -> adhoc 자체서명 인증서로 HTTPS (개발용; cryptography 필요)
 USE_SSL = os.environ.get("ATTENDANCE_SSL") == "1"
+# HTTPS 종단(Vercel/리버스프록시) 뒤 → Secure 쿠키 강제. (USE_SSL 이면 자동 포함)
+HTTPS = USE_SSL or os.environ.get("ATTENDANCE_HTTPS") == "1"

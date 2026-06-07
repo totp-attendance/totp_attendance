@@ -1,6 +1,7 @@
+# 배포(Vercel/Postgres) + 공통 의존. sqlcipher3 는 네이티브 빌드라 Vercel 불가 →
+# 로컬 SQLCipher 개발은 requirements-local.txt 사용.
 Flask>=3.0
 pyotp>=2.9
 qrcode[pil]>=7.4
-sqlcipher3>=0.6.2
-waitress>=3.0
-cryptography>=42.0   # app.py 의 ATTENDANCE_SSL=1 adhoc 인증서용
+psycopg[binary]>=3.1
+cryptography>=42.0

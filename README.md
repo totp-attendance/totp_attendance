@@ -4,15 +4,20 @@
 
 ## 구성
 - `app.py` — Flask 웹 서버 (앱 팩토리 + 첫 관리자 부트스트랩 + 블루프린트 등록)
-- `db.py` — SQLCipher 저장소 (DB 파일 전체 암호화 + 스키마 마이그레이션)
+- `db.py` — 저장소 (이중 백엔드: `DATABASE_URL` 있으면 Postgres/psycopg, 없으면 SQLCipher)
+- `api/index.py` · `vercel.json` — Vercel 서버리스 배포 진입점/설정
 - `config.py` — 환경변수 설정 + 보안 헬퍼 (비번해시/레이트리밋/IP제한/회전QR 챌린지)
 - `views/admin.py` — 교사 계정 관리 (관리자 전용)
 - `serve.py` — 운영용 WSGI 실행 (waitress)
 - `attendance.db` — 실행 시 자동 생성 (암호화됨)
 
-## 실행
+## 배포 (Vercel + Neon Postgres)
+클라우드 배포는 **[DEPLOY.md](DEPLOY.md)** 참고. `DATABASE_URL` 이 있으면 자동으로
+Postgres 백엔드(서버리스), 없으면 로컬 SQLCipher 파일 DB로 동작 (코드 동일).
+
+## 실행 (로컬)
 ```powershell
-pip install -r requirements.txt
+pip install -r requirements-local.txt   # 로컬: SQLCipher 포함 (배포는 requirements.txt)
 $env:ATTENDANCE_DB_KEY        = "강한-DB키"     # 운영 필수
 $env:ATTENDANCE_SECRET_KEY    = "세션서명키"     # 운영 필수
 $env:ATTENDANCE_ADMIN_USER    = "admin"        # 첫 관리자 아이디 (기본 admin)
@@ -78,7 +83,10 @@ epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 →
 ## 환경변수
 | 변수 | 용도 | 미설정 시 |
 |---|---|---|
-| `ATTENDANCE_DB_KEY` | SQLCipher DB 암호화 키 | 개발용 기본키 + 경고 |
+| `DATABASE_URL` | 있으면 Postgres 백엔드(Neon/Vercel), 없으면 로컬 SQLCipher | 로컬 SQLCipher |
+| `ATTENDANCE_DB_KEY` | SQLCipher DB 암호화 키 (로컬 백엔드 전용) | 개발용 기본키 + 경고 |
+| `ATTENDANCE_FIELD_KEY` | 개인 TOTP 시드(students.secret) 앱단 Fernet 암호화 키 | 없으면 평문(로컬은 파일 암호화로 보호) |
+| `ATTENDANCE_HTTPS` | `1` 이면 Secure 쿠키 강제 (HTTPS 종단/Vercel 뒤) | off |
 | `ATTENDANCE_SECRET_KEY` | Flask 세션 쿠키 서명 | 임시 랜덤(재시작 시 로그인 풀림) |
 | `ATTENDANCE_ADMIN_USER` | 첫 관리자 아이디 (첫 실행 시드) | `admin` |
 | `ATTENDANCE_ADMIN_PASSWORD` | 첫 관리자 비번 (첫 실행 시드) | `ATTENDANCE_TEACHER_PASSWORD` → 없으면 `admin` + 경고 |

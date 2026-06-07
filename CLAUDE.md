@@ -34,10 +34,17 @@ config.py         Env-var settings + security helpers: password hashing (werkzeu
                   pbkdf2 hash_pw/verify_pw), admin seed (ADMIN_USER/ADMIN_PASSWORD),
                   IP allowlist, X-Forwarded-For gating (TRUST_PROXY), in-memory rate
                   limiter, rotating-QR challenge (challenge_token / verify_challenge).
-db.py             SQLCipher store. ONLY place that touches the DB. get_conn()
-                  applies PRAGMA key before any query. Schema + _migrate (adds
-                  missing columns via PRAGMA table_info). CRUD helpers (teachers,
-                  sessions w/ owner_id, students, attendance).
+db.py             Storage — dual backend. DATABASE_URL set → PostgreSQL (psycopg,
+                  e.g. Neon/Vercel); else local SQLCipher file. ONLY place that
+                  touches the DB; same function API both ways (_ph/_q1/_qa/_ex/_ins
+                  helpers abstract placeholders + RETURNING/lastrowid). students.secret
+                  is Fernet-encrypted at the app layer when ATTENDANCE_FIELD_KEY set
+                  (Postgres has no whole-file encryption). CRUD: teachers, sessions
+                  (owner_id), students, attendance.
+api/index.py      Vercel serverless entry — exposes the Flask `app` (WSGI).
+vercel.json       Vercel build (@vercel/python) + route-all-to-app config.
+                  requirements.txt = deploy deps (NO sqlcipher3 — native build fails
+                  on Vercel); requirements-local.txt adds sqlcipher3 + waitress.
 helpers.py        require_teacher / require_admin decorators, current_teacher_id,
                   is_admin, client_ip, parse_float, png_response, PERSONAL_INTERVAL=30.
 views/auth.py     /login (username+password, pbkdf2 verify, open-redirect + session-
@@ -104,7 +111,7 @@ see security note below.)
 ## Commands
 
 ```powershell
-pip install -r requirements.txt
+pip install -r requirements-local.txt   # local (SQLCipher); deploy uses requirements.txt
 
 # Run tests (ALWAYS do this first — see constraints below)
 python -m pytest -q
@@ -140,7 +147,10 @@ no auto-reload) before any live/E2E check.
 
 | Var | Purpose | If unset |
 |---|---|---|
-| `ATTENDANCE_DB_KEY` | SQLCipher encryption key | dev default key + warning |
+| `DATABASE_URL` | set → Postgres backend (Neon/Vercel); unset → local SQLCipher | local SQLCipher |
+| `ATTENDANCE_DB_KEY` | SQLCipher encryption key (local backend only) | dev default key + warning |
+| `ATTENDANCE_FIELD_KEY` | Fernet key for students.secret app-layer encryption | unset → plaintext (local file is encrypted anyway) |
+| `ATTENDANCE_HTTPS` | `1` → force Secure cookies (behind HTTPS/Vercel) | off |
 | `ATTENDANCE_SECRET_KEY` | Flask session signing | random per process (logins drop on restart) |
 | `ATTENDANCE_ADMIN_USER` | first-admin username (seeded on first run) | `admin` |
 | `ATTENDANCE_ADMIN_PASSWORD` | first-admin password (seeded on first run) | falls back to `ATTENDANCE_TEACHER_PASSWORD`, else `admin` + warning |

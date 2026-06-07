@@ -9,3 +9,6 @@ __pycache__/
 
 # 개발 산출물
 _shots/
+
+# Vercel
+.vercel/
