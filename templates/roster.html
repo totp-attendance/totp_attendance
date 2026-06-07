@@ -18,12 +18,11 @@
  </form>
 </p>
 <table>
- <tr><th>#</th><th>학번</th><th>이름</th><th>시각</th><th>IP</th><th>위치</th></tr>
+ <tr><th>#</th><th>학번</th><th>이름</th><th>시각</th><th>IP</th></tr>
  {% for r in rows %}
  <tr><td>{{ loop.index }}</td><td>{{ r.student_id }}</td>
      <td>{{ r.student_name }}</td><td>{{ r.checked_at }}</td>
-     <td>{{ r.ip or '-' }}</td>
-     <td>{% if r.lat is not none %}{{ '%.5f'|format(r.lat) }}, {{ '%.5f'|format(r.lon) }}{% else %}-{% endif %}</td></tr>
+     <td>{{ r.ip or '-' }}</td></tr>
  {% endfor %}
 </table>
 {% endblock %}

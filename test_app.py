@@ -174,31 +174,6 @@ def test_ajax_wrong_code_json_not_ok(teacher):
     assert r.is_json and r.get_json()["ok"] is False
 
 
-# --- 지오펜스 ---------------------------------------------------------------
-def test_geofence_within_and_outside(teacher):
-    secret = enroll(teacher, "g1", "X")
-    secret2 = enroll(teacher, "g2", "Y")
-    sid = make_session(teacher, geo_lat="37.5665", geo_lon="126.9780",
-                       geo_radius="100")
-    pub = appmod.app.test_client()
-    # 반경 내
-    r = pub.post(f"/check/{sid}", data={"student_id": "g1", "code": code_of(secret),
-                 "lat": "37.5665", "lon": "126.9780"})
-    assert "출석 완료" in r.data.decode()
-    # 반경 밖 (~1.5km)
-    r = pub.post(f"/check/{sid}", data={"student_id": "g2", "code": code_of(secret2),
-                 "lat": "37.5800", "lon": "126.9780"})
-    assert "허용 위치 밖" in r.data.decode()
-
-
-def test_geofence_missing_location(teacher):
-    secret = enroll(teacher, "g3", "Z")
-    sid = make_session(teacher, geo_lat="37.5", geo_lon="127.0", geo_radius="50")
-    pub = appmod.app.test_client()
-    r = pub.post(f"/check/{sid}", data={"student_id": "g3", "code": code_of(secret)})
-    assert "위치 정보가 필요" in r.data.decode()
-
-
 # --- 회전 QR 챌린지 (현장 확인) ---------------------------------------------
 def test_qr_required_blocks_without_challenge(teacher):
     secret = enroll(teacher, "s1", "학생1")
@@ -289,10 +264,3 @@ def test_db_is_encrypted():
     import sqlite3
     with pytest.raises(sqlite3.DatabaseError):
         sqlite3.connect(db.DB_PATH).execute("SELECT * FROM sessions").fetchone()
-
-
-# --- haversine --------------------------------------------------------------
-def test_haversine():
-    assert config.haversine_m(37.5, 127.0, 37.5, 127.0) < 0.01
-    d = config.haversine_m(37.5665, 126.9780, 37.5755, 126.9780)  # ~1km
-    assert 900 < d < 1100

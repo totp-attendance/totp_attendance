@@ -90,37 +90,6 @@ def reset_fails(key):
     _fail_log.pop(key, None)
 
 
-# --- 지오펜스 (haversine 거리, m) -------------------------------------------
-import math
-
-
-def haversine_m(lat1, lon1, lat2, lon2):
-    """두 좌표 사이 거리(미터)."""
-    R = 6371000.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlmb = math.radians(lon2 - lon1)
-    a = (math.sin(dphi / 2) ** 2
-         + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2)
-    return 2 * R * math.asin(math.sqrt(a))
-
-
-def within_geofence(session_row, lat, lon):
-    """세션에 지오펜스 없으면 항상 True. 있으면 반경 내인지 검사.
-    반환: (허용여부, 거리m 또는 None)."""
-    glat, glon, radius = (
-        session_row.get("geo_lat"),
-        session_row.get("geo_lon"),
-        session_row.get("geo_radius"),
-    )
-    if glat is None or glon is None or not radius:
-        return True, None
-    if lat is None or lon is None:
-        return False, None
-    dist = haversine_m(glat, glon, lat, lon)
-    return dist <= radius, dist
-
-
 # --- 회전 QR 챌린지 (현장 증명) ---------------------------------------------
 # 교실 화면에만 뜨는, 짧게 만료되는 챌린지. HMAC 으로 위조 불가 + 시간 바인딩.
 # 원격 학생은 현재 화면의 QR 을 못 봐서 유효 챌린지를 얻을 수 없음.

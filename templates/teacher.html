@@ -10,7 +10,6 @@
 {% endblock %}
 {% block body %}
 <h2>{{ s.name }}</h2>
-{% if s.geo_radius %}<p class="muted">📍 위치 제한 ON (반경 {{ s.geo_radius }}m)</p>{% endif %}
 <p class="muted">개인 TOTP 방식 — 학생은 <b>본인 인증앱 코드</b> 입력 (사전 등록 필요)</p>
 <p class="muted" style="font-size:2rem"><span id="cnt">0</span>명 출석</p>
 <hr>

@@ -30,7 +30,7 @@ app.py            Flask app factory (create_app). Sets secret_key, CSRF cookie
                   flags, calls db.init_db(), registers 4 blueprints. __main__ runs
                   dev server (ssl_context="adhoc" if ATTENDANCE_SSL=1).
 config.py         Env-var settings + security helpers: password check, IP allowlist,
-                  in-memory rate limiter, haversine geofence, rotating-QR challenge
+                  in-memory rate limiter, rotating-QR challenge
                   (challenge_token / verify_challenge).
 db.py             SQLCipher store. ONLY place that touches the DB. get_conn()
                   applies PRAGMA key before any query. Schema + _migrate (adds
@@ -58,8 +58,9 @@ test_app.py       pytest suite (27 tests), temp encrypted DB per test.
 ## Data model
 
 - `sessions(id, name, secret, interval, created_at, open, mode, geo_lat, geo_lon, geo_radius, require_qr)`
-  — `secret`/`interval`/`mode` are dead columns (personal-TOTP mode only; kept for
-  NOT NULL / migration compatibility).
+  — `secret`/`interval`/`mode` and `geo_lat`/`geo_lon`/`geo_radius` are dead columns
+  (personal-TOTP mode; geofence was removed). Kept in schema for NOT NULL / migration
+  compatibility; no code reads or writes them.
 - `students(student_id PK, name, secret, created_at)` — global, session-independent.
 - `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)`
   with `UNIQUE(session_id, student_id)` (duplicate-attendance guard).
@@ -71,7 +72,7 @@ test_app.py       pytest suite (27 tests), temp encrypted DB per test.
 2. Student (once per device): scan registration QR → `/setup#sid=&name=&s=secret`
    → `attendance.js` saves identity to `localStorage`. No app install. (Google
    Authenticator works too via the otpauth QR / manual key fallback.)
-3. Teacher: `/create` (name + optional require_qr / geofence) → `/teacher/<id>`
+3. Teacher: `/create` (name + optional require_qr) → `/teacher/<id>`
    shows the rotating QR (refreshes every QR_ROTATE_SEC, default 10s) with a
    countdown bar, plus live attendance count.
 4. Student (scan once): scan classroom rotating QR → `/check/<id>?c=<challenge>` →
@@ -79,7 +80,7 @@ test_app.py       pytest suite (27 tests), temp encrypted DB per test.
    nav) → inline JSON result. Unregistered devices fall back to manual entry.
 
 `_validate` gate order (in `views/checkin.py`): ip_allowed → rate_limit → open →
-require_qr challenge → required fields → geofence → student enrolled → **TOTP
+require_qr challenge → required fields → student enrolled → **TOTP
 verify** → duplicate check. (Duplicate check is intentionally *after* TOTP verify —
 see security note below.)
 
@@ -149,7 +150,7 @@ no auto-reload) before any live/E2E check.
   fragment (`#`), which is never sent to the server → not in access logs / history.
 - **CSV formula injection**: cells starting with `= + - @` get a leading `'`.
 - **Constant-time**: password and challenge nonce compared with `hmac.compare_digest`.
-- **Audit**: every attendance row logs IP + location (if given).
+- **Audit**: every attendance row logs IP.
 
 ## Conventions & hard constraints
 
@@ -173,7 +174,6 @@ no auto-reload) before any live/E2E check.
 
 - Sharing a personal TOTP secret with another person still enables proxy attendance
   (human/policy control).
-- Geofence is spoofable (devtools / mock-location) — secondary signal only.
 - Rate limiter is in-memory → resets on restart / not shared across workers
   (use Redis etc. for multi-worker).
 - Production needs HTTPS (else codes/passwords travel in plaintext).

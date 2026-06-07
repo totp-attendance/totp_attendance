@@ -10,7 +10,7 @@ from flask import (
 
 import db
 import config
-from helpers import require_teacher, png_response, parse_float
+from helpers import require_teacher, png_response
 
 bp = Blueprint("sessions", __name__)
 
@@ -35,17 +35,10 @@ def create():
     name = request.form.get("name", "").strip()
     if not name:
         abort(400, "이름 필요")
-    geo_lat = parse_float(request.form.get("geo_lat"))
-    geo_lon = parse_float(request.form.get("geo_lon"))
-    geo_radius = request.form.get("geo_radius", "").strip()
-    geo_radius = int(geo_radius) if geo_radius.isdigit() else None
-    # 지오펜스는 위경도+반경 모두 있을 때만 적용
-    if geo_lat is None or geo_lon is None or not geo_radius:
-        geo_lat = geo_lon = geo_radius = None
     require_qr = 1 if request.form.get("require_qr") else 0
     # 개인 TOTP 방식만 사용. secret 컬럼은 NOT NULL 충족용(미사용).
     sid = db.create_session(name, pyotp.random_base32(), 30, "personal",
-                            geo_lat, geo_lon, geo_radius, require_qr)
+                            require_qr=require_qr)
     return redirect(url_for("sessions.teacher", session_id=sid))
 
 
@@ -122,11 +115,10 @@ def export_csv(session_id):
     rows = db.list_attendance(session_id)
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["학번", "이름", "시각", "IP", "위도", "경도"])
+    w.writerow(["학번", "이름", "시각", "IP"])
     for r in rows:
         w.writerow([_csv_safe(r["student_id"]), _csv_safe(r["student_name"]),
-                    r["checked_at"], r.get("ip") or "",
-                    r.get("lat") or "", r.get("lon") or ""])
+                    r["checked_at"], r.get("ip") or ""])
     # 엑셀 한글 깨짐 방지 BOM
     data = "﻿" + buf.getvalue()
     return Response(
