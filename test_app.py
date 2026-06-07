@@ -102,6 +102,18 @@ def test_wrong_code_rejected(teacher):
     assert "틀렸거나" in r.data.decode()
 
 
+def test_attendance_oracle_blocked(teacher):
+    """코드 모르면 학생 출석여부 못 캐냄 — 중복검사가 코드검증보다 뒤."""
+    secret = enroll(teacher, "s1", "학생1")
+    sid = make_session(teacher)
+    pub = appmod.app.test_client()
+    pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret)})
+    # 이미 출석한 학생을 '틀린 코드'로 찔러봄 → '이미 출석' 노출 금지, 코드오류 반환
+    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": "000000"})
+    body = r.data.decode()
+    assert "이미 출석" not in body and "틀렸거나" in body
+
+
 def test_unenrolled_rejected(teacher):
     sid = make_session(teacher)
     pub = appmod.app.test_client()
@@ -258,6 +270,18 @@ def test_csv_export_bom(teacher):
     r = teacher.get(f"/export/{sid}.csv")
     assert r.data.startswith(b"\xef\xbb\xbf")  # 엑셀 BOM
     assert "홍길동" in r.data.decode("utf-8-sig")
+
+
+def test_csv_formula_injection_neutralized(teacher):
+    """이름이 '='로 시작해도 엑셀 수식 실행 안 되게 작은따옴표 prepend."""
+    secret = enroll(teacher, "s1", "=1+2")
+    sid = make_session(teacher)
+    pub = appmod.app.test_client()
+    pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret)})
+    r = teacher.get(f"/export/{sid}.csv")
+    text = r.data.decode("utf-8-sig")
+    assert "'=1+2" in text  # 무력화됨
+    assert ",=1+2" not in text  # 원본 수식 그대로 안 나감
 
 
 # --- 암호화 -----------------------------------------------------------------

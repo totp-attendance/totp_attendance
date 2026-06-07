@@ -15,7 +15,8 @@
 {% block script %}
 <script src="{{ url_for('static', filename='attendance.js') }}"></script>
 <script>
- const p = new URLSearchParams(location.search);
+ // secret 은 fragment(#)로 전달됨 — location.hash 에서 읽음 (서버엔 안 감)
+ const p = new URLSearchParams(location.hash.slice(1) || location.search);
  const sid = p.get('sid'), name = p.get('name') || '', secret = p.get('s');
  const box = document.getElementById('box'), msg = document.getElementById('msg');
  if (sid && secret) {

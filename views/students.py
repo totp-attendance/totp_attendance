@@ -49,9 +49,11 @@ def qr_png(student_id):
     if not st:
         abort(404)
     setup_url = url_for("students.setup", _external=True)
-    query = urlencode({"sid": st["student_id"], "name": st["name"],
-                       "s": st["secret"]})
-    return png_response(f"{setup_url}?{query}")
+    # secret 은 URL fragment(#)로 — 서버/프록시 액세스 로그·브라우저 히스토리에
+    # 안 남음 (fragment 는 서버로 전송 안 됨, JS 만 읽음).
+    frag = urlencode({"sid": st["student_id"], "name": st["name"],
+                      "s": st["secret"]})
+    return png_response(f"{setup_url}#{frag}")
 
 
 @bp.route("/student/<student_id>/otpauth.png")

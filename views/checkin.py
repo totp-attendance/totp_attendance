@@ -11,7 +11,9 @@ bp = Blueprint("checkin", __name__)
 
 def _validate(session_id, s, sid_val, code, lat, lon, ip, challenge):
     """출석 검증. 성공 시 (None, None, final_name), 실패 시 (msg, cls, None)."""
-    rl_key = (session_id, ip)
+    # 레이트리밋은 학번까지 묶음 — NAT/프록시 뒤 공용 IP 라도 한 명 실패가
+    # 반 전체를 잠그지 않게. (학번별 무차별 시도만 제한)
+    rl_key = (session_id, ip, sid_val)
     student = db.get_student(sid_val) if sid_val else None
     geo_ok, dist = config.within_geofence(s, lat, lon)
 
@@ -33,15 +35,17 @@ def _validate(session_id, s, sid_val, code, lat, lon, ip, challenge):
     if not student:
         return ("등록되지 않은 학생입니다. 교사에게 개인 TOTP 등록을 요청하세요.",
                 "err", None)
-    if db.already_checked(session_id, sid_val):
-        return "이미 출석 처리됨.", "ok", None
-
     # 개인 secret 으로 코드 검증 (valid_window=1: 시계 오차 대비)
     verifier = pyotp.TOTP(student["secret"], interval=PERSONAL_INTERVAL)
-    if verifier.verify(code, valid_window=1):
-        return None, None, student["name"]
-    config.record_fail(rl_key)
-    return "코드가 틀렸거나 만료됨. 다시 확인.", "err", None
+    if not verifier.verify(code, valid_window=1):
+        config.record_fail(rl_key)
+        return "코드가 틀렸거나 만료됨. 다시 확인.", "err", None
+
+    # 코드 통과 후에만 중복여부 노출 — 코드 모르면 특정 학생 출석여부를
+    # 캐낼 수 없음 (출석여부 오라클 차단)
+    if db.already_checked(session_id, sid_val):
+        return "이미 출석 처리됨.", "ok", None
+    return None, None, student["name"]
 
 
 @bp.route("/check/<int:session_id>", methods=["GET", "POST"])
@@ -68,7 +72,7 @@ def check(session_id):
         if final_name is not None:  # 검증 통과 → 기록
             ok = db.mark_attendance(session_id, sid_val, final_name,
                                     ip=ip, lat=lat, lon=lon)
-            config.reset_fails((session_id, ip))
+            config.reset_fails((session_id, ip, sid_val))
             if ok:
                 msg, cls = f"출석 완료! ({final_name})", "ok"
                 sid_val = ""

@@ -23,6 +23,14 @@ from views.checkin import bp as checkin_bp
 def create_app():
     app = Flask(__name__)
     app.secret_key = config.SECRET_KEY
+    # CSRF 방어: 세션쿠키를 교차사이트 요청에 안 실어보냄(SameSite=Strict)
+    # → 악성사이트가 교사 세션으로 세션생성·학생삭제 강제 불가.
+    # HttpOnly: JS 로 쿠키 못 읽음(XSS 쿠키탈취 방지). HTTPS 면 Secure 까지.
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Strict",
+        SESSION_COOKIE_SECURE=config.USE_SSL,
+    )
     db.init_db()
     app.register_blueprint(auth_bp)
     app.register_blueprint(sessions_bp)

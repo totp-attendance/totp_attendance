@@ -15,6 +15,14 @@ from helpers import require_teacher, png_response, parse_float
 bp = Blueprint("sessions", __name__)
 
 
+def _csv_safe(v):
+    """엑셀 수식 인젝션 방지 — 위험 문자로 시작하면 작은따옴표 prepend."""
+    s = "" if v is None else str(v)
+    if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + s
+    return s
+
+
 @bp.route("/")
 @require_teacher
 def index():
@@ -116,8 +124,9 @@ def export_csv(session_id):
     w = csv.writer(buf)
     w.writerow(["학번", "이름", "시각", "IP", "위도", "경도"])
     for r in rows:
-        w.writerow([r["student_id"], r["student_name"], r["checked_at"],
-                    r.get("ip") or "", r.get("lat") or "", r.get("lon") or ""])
+        w.writerow([_csv_safe(r["student_id"]), _csv_safe(r["student_name"]),
+                    r["checked_at"], r.get("ip") or "",
+                    r.get("lat") or "", r.get("lon") or ""])
     # 엑셀 한글 깨짐 방지 BOM
     data = "﻿" + buf.getvalue()
     return Response(
