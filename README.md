@@ -152,7 +152,7 @@ epoch만 허용. QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 → 외부
   geo_*·secret·interval·mode 는 미사용(dead) 컬럼.
 - `courses(id, owner_id, name, day, start_t, end_t, room, created_at)` — 교수별 주간 시간표(과목)
 - `students(student_id PK, name, secret, created_at)` — 개인 TOTP 등록 (학교 공용)
-- `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)` + UNIQUE(session_id, student_id)
+- `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)` + UNIQUE(session_id, student_id) — lat/lon 미사용(dead)
 - `settings(key PK, value)` — 전역 설정 (예: `enroll_code` 자가등록 등록키)
 
 ## 같은 와이파이에서 학생 폰 접속

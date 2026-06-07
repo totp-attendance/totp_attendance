@@ -300,18 +300,14 @@ def count_admins():
 
 
 # --- 세션 ------------------------------------------------------------------
-def create_session(name, secret, interval=30, mode="session",
-                   geo_lat=None, geo_lon=None, geo_radius=None, require_qr=0,
-                   owner_id=None, course_id=None):
-    # interval/mode 는 dead 컬럼 → 기본값 사용(예약어 회피 위해 INSERT 안 함)
+def create_session(name, secret, require_qr=0, owner_id=None, course_id=None):
+    # interval/mode/geo_* 는 dead 컬럼 → DB 기본값/NULL (INSERT 에서 제외)
     with get_conn() as conn:
         return _ins(conn,
                     "INSERT INTO sessions "
-                    "(name, secret, geo_lat, geo_lon, geo_radius, require_qr, "
-                    "owner_id, course_id) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (name, secret, geo_lat, geo_lon, geo_radius,
-                     1 if require_qr else 0, owner_id, course_id))
+                    "(name, secret, require_qr, owner_id, course_id) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (name, secret, 1 if require_qr else 0, owner_id, course_id))
 
 
 def get_course_session(course_id, name):
@@ -429,17 +425,15 @@ def delete_student(student_id):
 
 
 # --- 출석 ------------------------------------------------------------------
-def mark_attendance(session_id, student_id, student_name, ip=None,
-                    lat=None, lon=None):
-    """이미 출석했으면 False, 새로 기록하면 True."""
+def mark_attendance(session_id, student_id, student_name, ip=None):
+    """이미 출석했으면 False, 새로 기록하면 True. (lat/lon 은 dead 컬럼)"""
     with get_conn() as conn:
         try:
             _ex(conn,
                 "INSERT INTO attendance "
-                "(session_id, student_id, student_name, ip, lat, lon) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (session_id, student_id.strip(), student_name.strip(),
-                 ip, lat, lon))
+                "(session_id, student_id, student_name, ip) "
+                "VALUES (?, ?, ?, ?)",
+                (session_id, student_id.strip(), student_name.strip(), ip))
             return True
         except _INTEGRITY:
             conn.rollback()

@@ -46,7 +46,7 @@ vercel.json       Vercel build (@vercel/python) + route-all-to-app config.
                   requirements.txt = deploy deps (NO sqlcipher3 — native build fails
                   on Vercel); requirements-local.txt adds sqlcipher3 + waitress.
 helpers.py        require_teacher / require_admin decorators, current_teacher_id,
-                  is_admin, client_ip, parse_float, png_response, PERSONAL_INTERVAL=30.
+                  is_admin, client_ip, png_response, PERSONAL_INTERVAL=30.
 views/auth.py     /login (username+password, pbkdf2 verify, open-redirect + session-
                   fixation guarded, rate-limited), /logout.
 views/admin.py    Teacher account management (admin-only): /admin list, /admin/create,
@@ -54,9 +54,10 @@ views/admin.py    Teacher account management (admin-only): /admin list, /admin/c
                   /admin/<id>/reset password, /admin/enroll-code (set/clear the
                   student self-registration code in settings).
 views/sessions.py Owner-scoped session CRUD (_owned_session 404-guards non-owners,
-                  admin sees all), /teacher, /api/code (count), /qr (static),
+                  admin sees all), /teacher, /api/code (count),
                   /qrc (rotating challenge QR, login-required), /roster, /toggle,
                   /export CSV. _csv_safe() neutralizes formula injection.
+                  require_qr is always 1 (on-site QR mandatory; no opt-out).
 views/students.py Student personal-TOTP enrollment, device-registration QR
                   (/student/<id>/qr.png → /setup#... with secret in fragment),
                   public /setup, delete. Self-registration: public /register
@@ -97,7 +98,8 @@ test_app.py       pytest suite (45 tests), temp encrypted DB per test (fixture s
 - `settings(key PK, value)` — global config (e.g. `enroll_code` for student
   self-registration; empty/unset → self-registration disabled).
 - `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)`
-  with `UNIQUE(session_id, student_id)` (duplicate-attendance guard).
+  with `UNIQUE(session_id, student_id)` (duplicate-attendance guard). `lat`/`lon`
+  are dead columns (geofence removed); only `ip` is recorded.
 
 ## Attendance flow
 

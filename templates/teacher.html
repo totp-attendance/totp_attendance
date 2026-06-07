@@ -5,7 +5,7 @@
 <main class="container center">
   <h1>{{ s.name }}</h1>
   <p class="muted" style="margin-top:-4px">
-    {% if s.require_qr %}<span class="badge qr">QR · 현장 확인</span>{% else %}<span class="badge off">고정 링크</span>{% endif %}
+    <span class="badge qr">QR · 현장 확인</span>
   </p>
 
   <div class="card" style="margin-top:18px">
@@ -14,21 +14,13 @@
   </div>
 
   <div class="card" style="margin-top:18px">
-    {% if s.require_qr %}
-      <p class="card-title">교실 화면 — 출석 QR</p>
-      <p class="muted small" style="margin-top:-6px">학생은 <b>이 화면의 QR</b>을 스캔해야 출석됩니다 (원격 차단).</p>
-      <div class="qrbox" style="margin:10px 0 6px">
-        <img id="qr" src="{{ url_for('sessions.qr_challenge', session_id=s.id) }}" width="248" height="248" alt="출석 QR">
-      </div>
-      <div class="bar" style="max-width:280px;margin:10px auto 8px"><div id="qrbar" style="width:100%;transition:width .2s linear"></div></div>
-      <p class="muted small">다음 갱신까지 <b id="qrsecs">{{ qr_rotate }}</b>초 · {{ qr_rotate }}초마다 자동 갱신</p>
-    {% else %}
-      <p class="card-title">학생용 출석 링크 (고정)</p>
-      <div class="qrbox" style="margin:10px 0 6px">
-        <img id="qr" src="{{ url_for('sessions.qr', session_id=s.id) }}" width="200" height="200" alt="출석 QR">
-      </div>
-      <p class="small"><a href="{{ check_url }}">{{ check_url }}</a></p>
-    {% endif %}
+    <p class="card-title">교실 화면 — 출석 QR</p>
+    <p class="muted small" style="margin-top:-6px">학생은 <b>이 화면의 QR</b>을 스캔해야 출석됩니다 (원격 차단).</p>
+    <div class="qrbox" style="margin:10px 0 6px">
+      <img id="qr" src="{{ url_for('sessions.qr_challenge', session_id=s.id) }}" width="248" height="248" alt="출석 QR">
+    </div>
+    <div class="bar" style="max-width:280px;margin:10px auto 8px"><div id="qrbar" style="width:100%;transition:width .2s linear"></div></div>
+    <p class="muted small">다음 갱신까지 <b id="qrsecs">{{ qr_rotate }}</b>초 · {{ qr_rotate }}초마다 자동 갱신</p>
   </div>
 
   <div class="row" style="justify-content:center;margin-top:20px">

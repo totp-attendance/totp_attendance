@@ -5,7 +5,7 @@
 
 실행:
   $env:ATTENDANCE_DB_KEY="..."; $env:ATTENDANCE_SECRET_KEY="..."
-  $env:ATTENDANCE_TEACHER_PASSWORD="..."
+  $env:ATTENDANCE_ADMIN_USER="admin"; $env:ATTENDANCE_ADMIN_PASSWORD="..."
   python serve.py
 """
 from waitress import serve

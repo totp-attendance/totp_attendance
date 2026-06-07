@@ -50,7 +50,7 @@ def create():
     if not name:
         abort(400, "이름 필요")
     # 현장 확인(QR 챌린지)은 항상 적용 — 원격 출석 차단 (옵션 아님).
-    sid = db.create_session(name, pyotp.random_base32(), 30, "personal",
+    sid = db.create_session(name, pyotp.random_base32(),
                             require_qr=1, owner_id=current_teacher_id())
     return redirect(url_for("sessions.teacher", session_id=sid))
 
@@ -59,8 +59,7 @@ def create():
 @require_teacher
 def teacher(session_id):
     s = _owned_session(session_id)
-    check_url = url_for("checkin.check", session_id=session_id, _external=True)
-    return render_template("teacher.html", s=s, check_url=check_url,
+    return render_template("teacher.html", s=s,
                            qr_rotate=config.QR_ROTATE_SEC)
 
 
@@ -70,16 +69,6 @@ def api_code(session_id):
     # 개인 TOTP 방식: 코드 없음. 실시간 출석수만 제공.
     _owned_session(session_id)
     return jsonify(count=len(db.list_attendance(session_id)))
-
-
-@bp.route("/qr/<int:session_id>.png")
-@bp.route("/qr/<int:session_id>")
-def qr(session_id):
-    s = db.get_session(session_id)
-    if not s:
-        abort(404)
-    url = url_for("checkin.check", session_id=session_id, _external=True)
-    return png_response(url)
 
 
 @bp.route("/qrc/<int:session_id>")

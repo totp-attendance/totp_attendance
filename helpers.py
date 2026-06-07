@@ -52,13 +52,6 @@ def client_ip():
     return request.remote_addr or ""
 
 
-def parse_float(val):
-    try:
-        return float(val)
-    except (TypeError, ValueError):
-        return None
-
-
 def png_response(data):
     """QR 등 PNG 바이트를 image/png 응답으로."""
     img = qrcode.make(data)
