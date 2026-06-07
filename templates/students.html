@@ -25,6 +25,18 @@
     </form>
   </div>
 
+  <div class="card" style="margin-top:18px">
+    <p class="card-title">학생 자가등록 (선택)</p>
+    <p class="muted small" style="margin-top:-6px">아래 링크/QR을 학생에게 공유하면 학생이 직접 등록합니다.
+      <b>등록키</b>는 <a href="{{ url_for('admin.index') if session.is_admin else '#' }}">계정 관리</a>에서 설정(관리자). 등록키 없으면 비활성.</p>
+    <div class="row" style="align-items:center;gap:16px">
+      <div class="qrbox"><img src="{{ url_for('students.register_qr') }}" width="140" height="140" alt="자가등록 QR"></div>
+      <div style="flex:1;min-width:200px">
+        <a href="{{ url_for('students.register', _external=True) }}">{{ url_for('students.register', _external=True) }}</a>
+      </div>
+    </div>
+  </div>
+
   <h3 style="margin:28px 0 12px">등록된 학생 {% if students %}<span class="muted small">({{ students|length }}명)</span>{% endif %}</h3>
   {% if students %}
   <div class="table-wrap">

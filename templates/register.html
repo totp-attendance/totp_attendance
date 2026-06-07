@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}학생 자가등록{% endblock %}
+{% block body %}
+<div class="auth-hero">
+  <main class="auth-card">
+    <div class="auth-logo">✓</div>
+    <h1 class="center" style="margin-bottom:2px">학생 등록</h1>
+    <p class="center muted" style="margin-bottom:18px">이 기기를 출석 인증기로 등록</p>
+
+    {% if not enabled %}
+      <div class="card">
+        <div class="alert warn"><span>🔒</span><span>현재 자가등록이 비활성화되어 있습니다. 교사에게 문의하세요.</span></div>
+      </div>
+    {% elif done %}
+      <div class="card center">
+        <h2 id="msg">등록 완료</h2>
+        <div id="box"></div>
+        <p class="muted small" style="margin-top:14px">이 기기에 인증정보가 저장됐습니다.<br>이제 수업 QR 스캔만 하면 자동 출석됩니다.</p>
+      </div>
+    {% else %}
+      <div class="card">
+        {% if err %}<div class="alert err" style="margin-bottom:14px">{{ err }}</div>{% endif %}
+        <form method="post" class="stack">
+          <div class="field">
+            <label>학번</label>
+            <input class="input" name="student_id" placeholder="본인 학번" required autocomplete="off">
+          </div>
+          <div class="field">
+            <label>이름</label>
+            <input class="input" name="name" placeholder="본인 이름" required autocomplete="off">
+          </div>
+          <div class="field">
+            <label>등록키</label>
+            <input class="input" name="code" placeholder="교사가 안내한 등록키" required autocomplete="off">
+          </div>
+          <button class="btn primary block lg">등록</button>
+        </form>
+        <p class="hint center" style="margin-top:12px">⚠️ 본인 학번으로만 등록하세요. 한 학번은 한 번만 등록됩니다.</p>
+      </div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
+{% block script %}
+{% if done %}
+<script src="{{ url_for('static', filename='attendance.js') }}"></script>
+<script>
+ saveIdentity({{ sid|tojson }}, {{ name|tojson }}, {{ secret|tojson }});
+ document.getElementById('box').innerHTML =
+   '<div class="alert ok" style="text-align:left;margin-top:12px"><span>✓</span><span><b>' +
+   {{ name|tojson }} + ' (' + {{ sid|tojson }} + ')</b> 이 기기에 저장됨</span></div>';
+</script>
+{% endif %}
+{% endblock %}

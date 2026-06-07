@@ -58,6 +58,15 @@ python app.py            # 개발 서버
 - 보안 메모: secret이 기기 브라우저에 저장됨(인증앱과 동급 신뢰). 공용 PC 사용 금지,
   기기 분실 시 교사가 해당 학생 재등록(새 secret 발급).
 
+## 학생 자가등록 (선택)
+교사가 일일이 등록하는 대신 학생이 직접 등록하게 할 수 있음.
+- 관리자가 `/admin`에서 **등록키** 설정 → 자가등록 활성화 (빈 값 = 비활성).
+- 학생은 `/register`(공개)서 **학번·이름·등록키** 입력 → 그 기기 브라우저에 secret 저장.
+- **선점잠금**: 이미 등록된 학번은 거부(첫 등록자만) → 남이 내 secret 못 빼감. 재등록은 교사가 삭제 후.
+- 등록키 무차별 대입 방지: `(register, IP)` 레이트리밋. 등록키 비교는 `hmac.compare_digest`.
+- 교사 화면(`/students`)에 자가등록 링크/QR 표시 → 학생에게 공유.
+- 한계: 외부인은 등록키로 차단되나, **같은 반 내 학번 선점 도용**은 막지 못함(완전 차단은 OAuth/이메일 인증 필요).
+
 ## 현장 확인 (QR, 항상 적용) — 원격 출석 차단
 모든 세션에 자동 적용 (옵션 아님):
 - 교사 화면에 **QR** 표시 (기본 10초마다 갱신, HMAC 챌린지 내장 → 위조 불가).
@@ -135,6 +144,7 @@ epoch만 허용. QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 → 외부
   — `owner_id` = 소유 교사(teachers.id). geo_*·secret·interval·mode 는 미사용(dead) 컬럼.
 - `students(student_id PK, name, secret, created_at)` — 개인 TOTP 등록 (학교 공용)
 - `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)` + UNIQUE(session_id, student_id)
+- `settings(key PK, value)` — 전역 설정 (예: `enroll_code` 자가등록 등록키)
 
 ## 같은 와이파이에서 학생 폰 접속
 서버는 `0.0.0.0` 바인드. 학생은 `http://<교사PC IP>:5000/check/<id>` 접속.

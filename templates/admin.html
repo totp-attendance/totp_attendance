@@ -29,6 +29,22 @@
     </form>
   </div>
 
+  <div class="card" style="margin-top:18px">
+    <p class="card-title">학생 자가등록 — 등록키</p>
+    <p class="muted small" style="margin-top:-6px">
+      등록키를 설정하면 학생이 <code>/register</code> 에서 <b>학번·이름·등록키</b>로 스스로 등록합니다
+      (학번 선점잠금). 빈 값으로 저장하면 자가등록이 꺼집니다.
+      현재: {% if enroll_code %}<span class="badge on">활성</span> 등록키 <code>{{ enroll_code }}</code>{% else %}<span class="badge off">비활성</span>{% endif %}
+    </p>
+    <form method="post" action="{{ url_for('admin.enroll_code') }}" class="row" style="align-items:flex-end">
+      <div class="field" style="flex:1;margin:0">
+        <label for="ec">등록키 (빈 값=끄기)</label>
+        <input id="ec" class="input" name="code" value="{{ enroll_code }}" placeholder="예: cs2026">
+      </div>
+      <button class="btn primary" style="height:46px">저장</button>
+    </form>
+  </div>
+
   <h3 style="margin:28px 0 12px">교사 목록 <span class="muted small">({{ teachers|length }}명)</span></h3>
   <div class="table-wrap">
     <table>

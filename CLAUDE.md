@@ -51,15 +51,17 @@ views/auth.py     /login (username+password, pbkdf2 verify, open-redirect + sess
                   fixation guarded, rate-limited), /logout.
 views/admin.py    Teacher account management (admin-only): /admin list, /admin/create,
                   /admin/<id>/delete (reassigns sessions, guards self/last-admin),
-                  /admin/<id>/reset password.
+                  /admin/<id>/reset password, /admin/enroll-code (set/clear the
+                  student self-registration code in settings).
 views/sessions.py Owner-scoped session CRUD (_owned_session 404-guards non-owners,
                   admin sees all), /teacher, /api/code (count), /qr (static),
                   /qrc (rotating challenge QR, login-required), /roster, /toggle,
                   /export CSV. _csv_safe() neutralizes formula injection.
 views/students.py Student personal-TOTP enrollment, device-registration QR
                   (/student/<id>/qr.png → /setup#... with secret in fragment),
-                  public /setup, delete. (No Google Authenticator / otpauth —
-                  browser-authenticator only.)
+                  public /setup, delete. Self-registration: public /register
+                  (enroll-code gated, claim-once, rate-limited) + /register/qr.png.
+                  (No Google Authenticator / otpauth — browser-authenticator only.)
 views/checkin.py  /check/<id> — _validate() runs the ordered gate checks, then
                   records attendance. AJAX branch returns JSON.
 static/attendance.js  Browser-side TOTP (HMAC-SHA1, pyotp-compatible) +
@@ -72,7 +74,7 @@ templates/        Jinja, base.html inheritance.
 serve.py          Production WSGI (waitress).
 run.ps1           Loads .env into env vars, runs app.py (or serve.py with -Serve).
 templates/admin.html  account-management UI (admin-only).
-test_app.py       pytest suite (36 tests), temp encrypted DB per test (fixture seeds
+test_app.py       pytest suite (42 tests), temp encrypted DB per test (fixture seeds
                   an admin teacher; login() helper posts username+password).
 ```
 
@@ -86,6 +88,8 @@ test_app.py       pytest suite (36 tests), temp encrypted DB per test (fixture s
   removed). Kept for NOT NULL / migration compatibility; no code reads them.
 - `students(student_id PK, name, secret, created_at)` — global, shared across all
   teachers (a student attends multiple classes), session-independent.
+- `settings(key PK, value)` — global config (e.g. `enroll_code` for student
+  self-registration; empty/unset → self-registration disabled).
 - `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)`
   with `UNIQUE(session_id, student_id)` (duplicate-attendance guard).
 

@@ -145,6 +145,9 @@ _DDL_SQLITE = [
         checked_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
         ip TEXT, lat REAL, lon REAL,
         UNIQUE(session_id, student_id))""",
+    """CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT)""",
 ]
 
 _DDL_PG = [
@@ -178,6 +181,9 @@ _DDL_PG = [
         checked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         ip TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION,
         UNIQUE(session_id, student_id))""",
+    """CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT)""",
 ]
 
 
@@ -392,3 +398,20 @@ def already_checked(session_id, student_id):
                    "SELECT 1 AS x FROM attendance "
                    "WHERE session_id = ? AND student_id = ?",
                    (session_id, student_id.strip())) is not None
+
+
+# --- 전역 설정 (key-value) --------------------------------------------------
+def get_setting(key, default=None):
+    with get_conn() as conn:
+        row = _q1(conn, "SELECT value FROM settings WHERE key = ?", (key,))
+    return row["value"] if row else default
+
+
+def set_setting(key, value):
+    with get_conn() as conn:
+        exists = _q1(conn, "SELECT 1 AS x FROM settings WHERE key = ?", (key,))
+        if exists:
+            _ex(conn, "UPDATE settings SET value = ? WHERE key = ?", (value, key))
+        else:
+            _ex(conn, "INSERT INTO settings (key, value) VALUES (?, ?)",
+                (key, value))

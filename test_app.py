@@ -383,6 +383,60 @@ def test_password_reset(teacher):
     assert login(c, "prof1", "newpw2").status_code == 302  # 새 비번 성공
 
 
+# --- 학생 자가등록 (등록키 + 선점잠금) -------------------------------------
+def test_register_disabled_by_default(client):
+    # 등록키 미설정 → 자가등록 비활성, 생성 안 됨
+    r = client.get("/register")
+    assert "비활성" in r.data.decode()
+    client.post("/register", data={"student_id": "x1", "name": "x", "code": "any"})
+    assert db.get_student("x1") is None
+
+
+def test_register_success_and_checkin(teacher):
+    db.set_setting("enroll_code", "cs2026")
+    pub = appmod.app.test_client()
+    r = pub.post("/register",
+                 data={"student_id": "sr1", "name": "셀프", "code": "cs2026"})
+    assert "등록 완료" in r.data.decode()
+    st = db.get_student("sr1")
+    assert st and st["name"] == "셀프"
+    # 자가등록 학생이 실제 출석 가능
+    secret = st["secret"]
+    sid = make_session(teacher)
+    r = pub.post(f"/check/{sid}",
+                 data={"student_id": "sr1", "code": code_of(secret),
+                       "c": config.challenge_token(sid)})
+    assert "출석 완료" in r.data.decode()
+
+
+def test_register_wrong_code_rejected(client):
+    db.set_setting("enroll_code", "cs2026")
+    client.post("/register",
+                data={"student_id": "sr2", "name": "n", "code": "WRONG"})
+    assert db.get_student("sr2") is None
+
+
+def test_register_duplicate_student_blocked(teacher):
+    db.set_setting("enroll_code", "cs2026")
+    enroll(teacher, "dup", "기존학생")
+    pub = appmod.app.test_client()
+    r = pub.post("/register",
+                 data={"student_id": "dup", "name": "사칭", "code": "cs2026"})
+    assert "이미 등록된" in r.data.decode()
+    assert db.get_student("dup")["name"] == "기존학생"  # 덮어쓰기 안 됨
+
+
+def test_admin_sets_enroll_code(teacher):
+    teacher.post("/admin/enroll-code", data={"code": "abc123"})
+    assert db.get_setting("enroll_code") == "abc123"
+
+
+def test_non_admin_cannot_set_enroll_code(teacher):
+    c = _new_teacher(teacher, "prof1")
+    assert c.post("/admin/enroll-code",
+                  data={"code": "x"}).status_code == 403
+
+
 # --- 암호화 -----------------------------------------------------------------
 def test_db_is_encrypted():
     import sqlite3

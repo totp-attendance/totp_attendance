@@ -10,7 +10,8 @@ bp = Blueprint("admin", __name__)
 
 def _render(err="", msg=""):
     return render_template("admin.html", teachers=db.list_teachers(),
-                           err=err, msg=msg, me=current_teacher_id())
+                           err=err, msg=msg, me=current_teacher_id(),
+                           enroll_code=db.get_setting("enroll_code") or "")
 
 
 @bp.route("/admin")
@@ -49,6 +50,17 @@ def delete(teacher_id):
     db.reassign_sessions(teacher_id, current_teacher_id())
     db.delete_teacher(teacher_id)
     return _render(msg=f"계정 삭제됨: {t['username']} (세션은 본인에게 인계)")
+
+
+@bp.route("/admin/enroll-code", methods=["POST"])
+@require_admin
+def enroll_code():
+    """학생 자가등록 등록키 설정/해제. 빈 값 = 자가등록 비활성화."""
+    code = request.form.get("code", "").strip()
+    db.set_setting("enroll_code", code)
+    if code:
+        return _render(msg="자가등록 활성화됨 (등록키 설정).")
+    return _render(msg="자가등록 비활성화됨 (등록키 해제).")
 
 
 @bp.route("/admin/<int:teacher_id>/reset", methods=["POST"])
