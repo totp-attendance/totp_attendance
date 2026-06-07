@@ -46,9 +46,12 @@ views/students.py Student personal-TOTP enrollment, device-registration QR
                   otpauth QR fallback, public /setup, delete.
 views/checkin.py  /check/<id> — _validate() runs the ordered gate checks, then
                   records attendance. AJAX branch returns JSON.
-static/attendance.js  Browser-side TOTP (WebCrypto HMAC-SHA1, pyotp-compatible) +
+static/attendance.js  Browser-side TOTP (HMAC-SHA1, pyotp-compatible) +
                   localStorage device identity. Makes the phone browser the
-                  authenticator (no app install needed).
+                  authenticator (no app install needed). Uses WebCrypto when
+                  available, else a pure-JS HMAC-SHA1 fallback — so it works on
+                  plain HTTP LAN (http://<PC-IP>:5000), where crypto.subtle is
+                  undefined (secure-context only). Do NOT remove the fallback.
 templates/        Jinja, base.html inheritance.
 serve.py          Production WSGI (waitress).
 run.ps1           Loads .env into env vars, runs app.py (or serve.py with -Serve).

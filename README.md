@@ -34,7 +34,10 @@ python app.py            # 개발 서버
 
 ### 기기 등록 = 브라우저가 인증기
 - 학생 폰 브라우저가 secret을 `localStorage`에 보관 → 페이지에서 TOTP 자동 계산
-  (`static/attendance.js`: base32 + WebCrypto HMAC-SHA1, pyotp 호환).
+  (`static/attendance.js`: base32 + HMAC-SHA1, pyotp 호환).
+- **평문 HTTP LAN 지원**: WebCrypto(`crypto.subtle`)는 HTTPS/localhost 에서만 동작.
+  학생폰이 `http://<교사PC-IP>:5000` 평문으로 접속하면 WebCrypto 가 없으므로
+  순수 JS HMAC-SHA1 폴백으로 코드 계산 → 인증서 없이도 자동출석 동작.
 - 출석은 `fetch`로 제출 → 페이지 이동 없이 결과 표시.
 - 보안 메모: secret이 기기 브라우저에 저장됨(인증앱과 동급 신뢰). 공용 PC 사용 금지,
   기기 분실 시 교사가 해당 학생 재등록(새 secret 발급).

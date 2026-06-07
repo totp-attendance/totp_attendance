@@ -73,8 +73,13 @@ async function run(){
   // 이 기기에 저장된 신원 있으면 자동 입력
   const id = loadIdentity();
   if (!id) return;  // 미등록 기기 → 수동 입력
-  document.querySelector('[name=student_id]').value = id.sid;
-  document.querySelector('[name=code]').value = await totp(id.secret);
+  try {
+    document.querySelector('[name=student_id]').value = id.sid;
+    document.querySelector('[name=code]').value = await totp(id.secret);
+  } catch(e) {
+    showMsg('코드 자동계산 실패: ' + e.message + ' — 수동 입력하세요.', 'err');
+    return;
+  }
   document.getElementById('hint').textContent = id.name + ' (' + id.sid + ') — 자동 입력됨';
   // 현장확인인데 QR 스캔(챌린지) 없이 직접 들어온 경우 → 자동제출 금지
   if (REQ_QR && !HAS_CHALLENGE){
