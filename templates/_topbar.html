@@ -1,10 +1,10 @@
 <header class="topbar">
-  <a class="brand" href="{{ url_for('sessions.index') }}">
+  <a class="brand" href="{{ url_for('timetable.index') }}">
     <span class="logo">✓</span> 출석
   </a>
   <nav>
-    <a href="{{ url_for('sessions.index') }}">세션</a>
     <a href="{{ url_for('timetable.index') }}">시간표</a>
+    <a href="{{ url_for('sessions.index') }}">세션</a>
     <a href="{{ url_for('students.index') }}">학생 관리</a>
     {% if session.is_admin %}<a href="{{ url_for('admin.index') }}">계정 관리</a>{% endif %}
     {% if session.username %}<span class="muted small" style="padding:7px 4px">{{ session.username }}{% if session.is_admin %} · 관리자{% endif %}</span>{% endif %}

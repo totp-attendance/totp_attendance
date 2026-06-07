@@ -40,6 +40,7 @@ def _hm(h, m):
     return ""
 
 
+@bp.route("/")
 @bp.route("/timetable")
 @require_teacher
 def index():

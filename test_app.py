@@ -343,7 +343,7 @@ def test_session_owner_isolation(teacher):
     other = _new_teacher(teacher, "prof2")
     sid = make_session(owner, name="프로프1수업")
     # 타 교사: 목록에 안 보이고 직접 접근도 404
-    assert "프로프1수업" not in other.get("/").data.decode()
+    assert "프로프1수업" not in other.get("/sessions").data.decode()
     assert other.get(f"/teacher/{sid}").status_code == 404
     assert other.get(f"/roster/{sid}").status_code == 404
     assert other.get(f"/api/code/{sid}").status_code == 404
@@ -354,7 +354,7 @@ def test_session_owner_isolation(teacher):
 def test_admin_sees_all_sessions(teacher):
     owner = _new_teacher(teacher, "prof1")
     sid = make_session(owner, name="프로프1수업")
-    assert "프로프1수업" in teacher.get("/").data.decode()   # 관리자 전체 조회
+    assert "프로프1수업" in teacher.get("/sessions").data.decode()   # 관리자 전체 조회
     assert teacher.get(f"/teacher/{sid}").status_code == 200  # 관리자 접근 허용
 
 

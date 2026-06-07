@@ -34,7 +34,7 @@ def _owned_session(session_id):
     return s
 
 
-@bp.route("/")
+@bp.route("/sessions")
 @require_teacher
 def index():
     # 관리자는 전체, 일반 교사는 본인 세션만
