@@ -1,31 +1,41 @@
 {% extends "base.html" %}
-{% block title %}{{ s.name }} - 교사{% endblock %}
-{% block style %}
- body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;text-align:center}
- .code{font-size:4rem;font-weight:700;letter-spacing:.3rem;font-variant-numeric:tabular-nums}
- .bar{height:8px;background:#eee;border-radius:4px;overflow:hidden;margin:12px 0}
- .bar>div{height:100%;background:#06c;transition:width 1s linear}
- img{margin:16px 0} .muted{color:#888;font-size:.9rem}
- a{color:#06c}
-{% endblock %}
+{% block title %}{{ s.name }} · 교사 화면{% endblock %}
 {% block body %}
-<h2>{{ s.name }}</h2>
-<p class="muted">개인 TOTP 방식 — 학생은 <b>본인 인증앱 코드</b> 입력 (사전 등록 필요)</p>
-<p class="muted" style="font-size:2rem"><span id="cnt">0</span>명 출석</p>
-<hr>
-{% if s.require_qr %}
-<p class="muted">현장 확인 ON — 학생은 <b>이 화면의 회전 QR</b>을 스캔해야 출석됨 (원격 차단)</p>
-<img id="qr" src="{{ url_for('sessions.qr_challenge', session_id=s.id) }}" width="240" height="240">
-<div class="bar" style="max-width:240px;margin:8px auto"><div id="qrbar" style="width:100%;transition:width .2s linear"></div></div>
-<p class="muted">다음 QR 갱신까지 <span id="qrsecs">{{ qr_rotate }}</span>초 · 자동 회전 ({{ qr_rotate }}초)</p>
-{% else %}
-<p class="muted">학생용 출석 링크 (고정 QR)</p>
-<img id="qr" src="{{ url_for('sessions.qr', session_id=s.id) }}" width="180" height="180">
-<p><a href="{{ check_url }}">{{ check_url }}</a></p>
-{% endif %}
-<p><a href="{{ url_for('sessions.roster', session_id=s.id) }}">출석부</a> ·
-   <a href="{{ url_for('students.index') }}">학생관리</a> ·
-   <a href="{{ url_for('auth.logout') }}">로그아웃</a></p>
+{% include "_topbar.html" %}
+<main class="container center">
+  <h1>{{ s.name }}</h1>
+  <p class="muted" style="margin-top:-4px">
+    {% if s.require_qr %}<span class="badge qr">회전 QR · 현장 확인</span>{% else %}<span class="badge off">고정 링크</span>{% endif %}
+  </p>
+
+  <div class="card" style="margin-top:18px">
+    <p class="card-title">실시간 출석</p>
+    <div class="stat"><span class="num" id="cnt">0</span><span class="unit">명 출석</span></div>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    {% if s.require_qr %}
+      <p class="card-title">교실 화면 — 회전 QR</p>
+      <p class="muted small" style="margin-top:-6px">학생은 <b>이 화면의 QR</b>을 스캔해야 출석됩니다 (원격 차단).</p>
+      <div class="qrbox" style="margin:10px 0 6px">
+        <img id="qr" src="{{ url_for('sessions.qr_challenge', session_id=s.id) }}" width="248" height="248" alt="회전 QR">
+      </div>
+      <div class="bar" style="max-width:280px;margin:10px auto 8px"><div id="qrbar" style="width:100%;transition:width .2s linear"></div></div>
+      <p class="muted small">다음 갱신까지 <b id="qrsecs">{{ qr_rotate }}</b>초 · {{ qr_rotate }}초마다 자동 회전</p>
+    {% else %}
+      <p class="card-title">학생용 출석 링크 (고정)</p>
+      <div class="qrbox" style="margin:10px 0 6px">
+        <img id="qr" src="{{ url_for('sessions.qr', session_id=s.id) }}" width="200" height="200" alt="출석 QR">
+      </div>
+      <p class="small"><a href="{{ check_url }}">{{ check_url }}</a></p>
+    {% endif %}
+  </div>
+
+  <div class="row" style="justify-content:center;margin-top:20px">
+    <a class="btn ghost" href="{{ url_for('sessions.roster', session_id=s.id) }}">출석부 보기</a>
+    <a class="btn ghost" href="{{ url_for('sessions.index') }}">세션 목록</a>
+  </div>
+</main>
 {% endblock %}
 {% block script %}
 <script>

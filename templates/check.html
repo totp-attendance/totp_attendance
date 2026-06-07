@@ -1,35 +1,37 @@
 {% extends "base.html" %}
-{% block title %}{{ s.name }} - 출석{% endblock %}
-{% block style %}
- body{font-family:system-ui,sans-serif;max-width:420px;margin:40px auto;padding:0 16px}
- h2{font-size:1.3rem} label{display:block;margin:12px 0 4px}
- input{width:100%;padding:10px;font-size:1.1rem;box-sizing:border-box}
- button{margin-top:16px;width:100%;padding:12px;font-size:1.1rem;cursor:pointer}
- .msg{padding:12px;border-radius:6px;margin:12px 0}
- .ok{background:#e6f4ea;color:#137333} .err{background:#fce8e6;color:#c5221f}
- .code-in{letter-spacing:.3rem;text-align:center;font-variant-numeric:tabular-nums}
-{% endblock %}
+{% block title %}{{ s.name }} · 출석{% endblock %}
 {% block body %}
-<h2>{{ s.name }} 출석</h2>
-<p id="hint" style="color:#555">등록된 기기면 자동 출석됩니다. (미등록 기기는 학번·코드 직접 입력)</p>
-{% if s.require_qr and not challenge %}
-<div class="msg err">교실 화면의 회전 QR을 카메라로 스캔해 들어와야 출석할 수 있습니다.</div>
-{% endif %}
-<div id="result">{% if msg %}<div class="msg {{ cls }}">{{ msg }}</div>{% endif %}</div>
-{% if s.open %}
-<form method="post" id="f">
-  <input type="hidden" name="c" value="{{ challenge }}">
-  <label>학번</label>
-  <input name="student_id" required autocomplete="off" value="{{ sid_val }}">
-  <label>출석 코드 (6자리)</label>
-  <input name="code" class="code-in" inputmode="numeric" pattern="[0-9]*" maxlength="6" required>
-  <button id="btn">출석하기</button>
-  <p class="muted" id="geostat" style="color:#888;font-size:.85rem"></p>
-</form>
-{% endif %}
-{% if not s.open %}
-<p>이 세션은 닫혔습니다.</p>
-{% endif %}
+<div class="container narrow">
+  <div class="card">
+    <h2 style="margin-bottom:2px">{{ s.name }}</h2>
+    <p id="hint" class="muted small">등록된 기기면 자동 출석됩니다. (미등록 기기는 학번·코드 직접 입력)</p>
+
+    {% if s.require_qr and not challenge %}
+    <div class="alert err" style="margin:14px 0"><span>!</span><span>교실 화면의 회전 QR을 카메라로 스캔해 들어와야 출석할 수 있습니다.</span></div>
+    {% endif %}
+
+    <div id="result">{% if msg %}<div class="alert {{ cls }}">{{ msg }}</div>{% endif %}</div>
+
+    {% if s.open %}
+    <form method="post" id="f" class="stack" style="margin-top:14px">
+      <input type="hidden" name="c" value="{{ challenge }}">
+      <div class="field">
+        <label>학번</label>
+        <input class="input" name="student_id" required autocomplete="off" value="{{ sid_val }}">
+      </div>
+      <div class="field">
+        <label>출석 코드 (6자리)</label>
+        <input class="input code-in" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" required placeholder="••••••">
+      </div>
+      <button id="btn" class="btn primary block lg">출석하기</button>
+      <p class="hint center" id="geostat"></p>
+    </form>
+    {% else %}
+    <div class="alert warn" style="margin-top:14px"><span>🔒</span><span>이 세션은 닫혔습니다.</span></div>
+    {% endif %}
+  </div>
+  <p class="center small muted" style="margin-top:16px">본인 인증정보 없이는 출석할 수 없습니다.</p>
+</div>
 {% endblock %}
 {% block script %}
 {% if s.open %}
@@ -44,7 +46,7 @@ const result = document.getElementById('result');
 let done = false;  // 출석 완료/처리됨 후 재제출 금지
 
 function showMsg(msg, cls){
-  result.innerHTML = '<div class="msg ' + cls + '">' + msg + '</div>';
+  result.innerHTML = '<div class="alert ' + cls + '">' + msg + '</div>';
 }
 
 // fetch 로 제출 → 페이지 이동 없이 결과만 표시 (자동/수동 공통)
@@ -86,7 +88,7 @@ async function run(){
     stat.textContent = '교실 화면의 QR을 스캔해 출석하세요';
     return;
   }
-  stat.textContent = '자동 출석 중...';
+  stat.textContent = '자동 출석 중…';
   submitForm();
 }
 run();

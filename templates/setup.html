@@ -1,16 +1,18 @@
 {% extends "base.html" %}
 {% block title %}기기 등록{% endblock %}
-{% block style %}
- body{font-family:system-ui,sans-serif;max-width:420px;margin:60px auto;padding:0 16px;text-align:center}
- .ok{background:#e6f4ea;color:#137333;padding:16px;border-radius:8px}
- .err{background:#fce8e6;color:#c5221f;padding:16px;border-radius:8px}
- .muted{color:#888;font-size:.9rem;margin-top:16px}
-{% endblock %}
 {% block body %}
-<h2 id="msg">등록 중...</h2>
-<div id="box"></div>
-<p class="muted">이 기기(브라우저)에 본인 인증정보를 저장합니다.<br>
-이후 수업의 QR만 스캔하면 자동으로 출석됩니다.</p>
+<div class="auth-hero">
+  <main class="auth-card center">
+    <div class="auth-logo">✓</div>
+    <div class="card">
+      <h2 id="msg">등록 중…</h2>
+      <div id="box"></div>
+      <p class="muted small" style="margin-top:16px">
+        이 기기(브라우저)에 본인 인증정보를 저장합니다.<br>
+        이후 수업의 QR만 스캔하면 자동으로 출석됩니다.</p>
+    </div>
+  </main>
+</div>
 {% endblock %}
 {% block script %}
 <script src="{{ url_for('static', filename='attendance.js') }}"></script>
@@ -22,10 +24,12 @@
  if (sid && secret) {
    saveIdentity(sid, name, secret);
    msg.textContent = '등록 완료';
-   box.innerHTML = `<div class="ok">${name} (${sid}) 이 기기에 저장됨<br>이제 수업 QR 스캔만 하면 자동 출석</div>`;
+   box.innerHTML = '<div class="alert ok" style="text-align:left;margin-top:12px"><span>✓</span><span><b>' +
+     name + ' (' + sid + ')</b> 이 기기에 저장됨<br>이제 수업 QR 스캔만 하면 자동 출석</span></div>';
  } else {
    msg.textContent = '등록 실패';
-   box.innerHTML = '<div class="err">등록 정보가 없습니다. 교사에게 등록 QR을 다시 받아 스캔하세요.</div>';
+   box.innerHTML = '<div class="alert err" style="text-align:left;margin-top:12px"><span>!</span>' +
+     '<span>등록 정보가 없습니다. 교사에게 등록 QR을 다시 받아 스캔하세요.</span></div>';
  }
 </script>
 {% endblock %}

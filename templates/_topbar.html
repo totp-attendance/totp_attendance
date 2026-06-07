@@ -1,0 +1,10 @@
+<header class="topbar">
+  <a class="brand" href="{{ url_for('sessions.index') }}">
+    <span class="logo">✓</span> 출석
+  </a>
+  <nav>
+    <a href="{{ url_for('sessions.index') }}">세션</a>
+    <a href="{{ url_for('students.index') }}">학생 관리</a>
+    <a href="{{ url_for('auth.logout') }}">로그아웃</a>
+  </nav>
+</header>

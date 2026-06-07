@@ -1,28 +1,49 @@
 {% extends "base.html" %}
-{% block title %}{{ s.name }} - 출석부{% endblock %}
-{% block style %}
- body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px}
- table{width:100%;border-collapse:collapse;margin-top:16px}
- td,th{border:1px solid #ddd;padding:8px;text-align:left}
- a,button{font-size:1rem} form{display:inline} a{color:#06c}
-{% endblock %}
+{% block title %}{{ s.name }} · 출석부{% endblock %}
 {% block body %}
-<h2>{{ s.name }} 출석부 ({{ rows|length }}명)</h2>
-<p>
- <a href="{{ url_for('sessions.export_csv', session_id=s.id) }}">CSV 내보내기</a> ·
- <a href="{{ url_for('sessions.teacher', session_id=s.id) }}">교사화면</a> ·
- <a href="{{ url_for('sessions.index') }}">목록</a> ·
- <a href="{{ url_for('auth.logout') }}">로그아웃</a> ·
- <form method="post" action="{{ url_for('sessions.toggle', session_id=s.id) }}">
-   <button>{{ '세션 닫기' if s.open else '세션 열기' }}</button>
- </form>
-</p>
-<table>
- <tr><th>#</th><th>학번</th><th>이름</th><th>시각</th><th>IP</th></tr>
- {% for r in rows %}
- <tr><td>{{ loop.index }}</td><td>{{ r.student_id }}</td>
-     <td>{{ r.student_name }}</td><td>{{ r.checked_at }}</td>
-     <td>{{ r.ip or '-' }}</td></tr>
- {% endfor %}
-</table>
+{% include "_topbar.html" %}
+<main class="container">
+  <div class="row between" style="align-items:flex-start">
+    <div>
+      <h1 style="margin-bottom:2px">{{ s.name }}</h1>
+      <p class="muted">출석부
+        {% if s.open %}<span class="badge on">● 열림</span>{% else %}<span class="badge off">닫힘</span>{% endif %}
+      </p>
+    </div>
+    <div class="stat" style="gap:6px"><span class="num" style="font-size:2.2rem">{{ rows|length }}</span><span class="unit">명</span></div>
+  </div>
+
+  <div class="row" style="margin:14px 0 20px">
+    <a class="btn ghost" href="{{ url_for('sessions.export_csv', session_id=s.id) }}">⬇ CSV 내보내기</a>
+    <a class="btn ghost" href="{{ url_for('sessions.teacher', session_id=s.id) }}">교사 화면</a>
+    <div class="spacer"></div>
+    <form method="post" action="{{ url_for('sessions.toggle', session_id=s.id) }}" style="margin:0">
+      <button class="btn {{ 'danger' if s.open else 'primary' }}">{{ '세션 닫기' if s.open else '세션 열기' }}</button>
+    </form>
+  </div>
+
+  {% if rows %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>학번</th><th>이름</th><th>시각</th><th>IP</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="num">{{ loop.index }}</td>
+          <td class="num">{{ r.student_id }}</td>
+          <td><b>{{ r.student_name }}</b></td>
+          <td class="num small">{{ r.checked_at }}</td>
+          <td class="num small muted">{{ r.ip or '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card empty">
+    <div class="big">🪑</div>
+    아직 출석한 학생이 없습니다.
+  </div>
+  {% endif %}
+</main>
 {% endblock %}

@@ -1,34 +1,57 @@
 {% extends "base.html" %}
 {% block title %}학생 관리{% endblock %}
-{% block style %}
- body{font-family:system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px}
- h1{font-size:1.3rem} .row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
- input,button{padding:8px;font-size:1rem} button{cursor:pointer}
- table{width:100%;border-collapse:collapse;margin-top:16px}
- td,th{border:1px solid #ddd;padding:8px;text-align:left} a{color:#06c}
- form.inline{display:inline}
-{% endblock %}
 {% block body %}
-<h1>학생 관리 (개인 TOTP 등록)</h1>
-<p><a href="{{ url_for('sessions.index') }}">← 세션 목록</a></p>
-<p style="color:#555">학생 등록 → 학생이 <b>등록 QR을 폰 카메라로 스캔</b> → 브라우저(이 기기)가
-인증기로 등록(앱 설치 불필요) → 이후 수업 QR 스캔만으로 자동 출석.</p>
-<form method="post" action="{{ url_for('students.enroll') }}">
- <div class="row">
-  <input name="student_id" placeholder="학번" required>
-  <input name="name" placeholder="이름" required>
-  <button>등록 / QR 보기</button>
- </div>
-</form>
-<table>
- <tr><th>학번</th><th>이름</th><th>등록일</th><th>등록 QR</th><th></th></tr>
- {% for st in students %}
- <tr>
-  <td>{{ st.student_id }}</td><td>{{ st.name }}</td><td>{{ st.created_at }}</td>
-  <td><a href="{{ url_for('students.qr', student_id=st.student_id) }}">QR</a></td>
-  <td><form class="inline" method="post" action="{{ url_for('students.delete', student_id=st.student_id) }}">
-      <button onclick="return confirm('삭제?')">삭제</button></form></td>
- </tr>
- {% endfor %}
-</table>
+{% include "_topbar.html" %}
+<main class="container">
+  <h1>학생 관리</h1>
+  <p class="muted" style="margin-top:-4px;margin-bottom:20px">
+    학생 등록 → 학생이 <b>등록 QR을 폰 카메라로 스캔</b>하면 그 기기 브라우저가 인증기가 됩니다
+    (앱 설치 불필요). 이후 수업 QR 스캔만으로 자동 출석.</p>
+
+  <div class="card">
+    <p class="card-title">학생 등록</p>
+    <form method="post" action="{{ url_for('students.enroll') }}">
+      <div class="row" style="align-items:flex-end">
+        <div class="field" style="flex:1;margin:0">
+          <label for="sid">학번</label>
+          <input id="sid" class="input" name="student_id" placeholder="예: 20231234" required>
+        </div>
+        <div class="field" style="flex:1;margin:0">
+          <label for="nm">이름</label>
+          <input id="nm" class="input" name="name" placeholder="예: 홍길동" required>
+        </div>
+        <button class="btn primary" style="height:46px">등록 / QR 보기</button>
+      </div>
+    </form>
+  </div>
+
+  <h3 style="margin:28px 0 12px">등록된 학생 {% if students %}<span class="muted small">({{ students|length }}명)</span>{% endif %}</h3>
+  {% if students %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>학번</th><th>이름</th><th>등록일</th><th>등록 QR</th><th></th></tr></thead>
+      <tbody>
+      {% for st in students %}
+        <tr>
+          <td class="num">{{ st.student_id }}</td>
+          <td><b>{{ st.name }}</b></td>
+          <td class="num small">{{ st.created_at }}</td>
+          <td><a href="{{ url_for('students.qr', student_id=st.student_id) }}">QR 보기</a></td>
+          <td>
+            <form method="post" action="{{ url_for('students.delete', student_id=st.student_id) }}" style="margin:0">
+              <button class="btn danger" style="padding:6px 12px" onclick="return confirm('{{ st.name }} 학생을 삭제할까요?')">삭제</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card empty">
+    <div class="big">👥</div>
+    등록된 학생이 없습니다.<br>위에서 학번·이름으로 첫 학생을 등록하세요.
+  </div>
+  {% endif %}
+</main>
 {% endblock %}

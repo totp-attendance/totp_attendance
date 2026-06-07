@@ -1,17 +1,23 @@
 {% extends "base.html" %}
 {% block title %}교사 로그인{% endblock %}
-{% block style %}
- body{font-family:system-ui,sans-serif;max-width:360px;margin:60px auto;padding:0 16px}
- h1{font-size:1.3rem} input{width:100%;padding:10px;font-size:1.1rem;box-sizing:border-box;margin:8px 0}
- button{width:100%;padding:12px;font-size:1.1rem;cursor:pointer}
- .err{background:#fce8e6;color:#c5221f;padding:12px;border-radius:6px;margin:12px 0}
-{% endblock %}
 {% block body %}
-<h1>교사 로그인</h1>
-{% if err %}<div class="err">{{ err }}</div>{% endif %}
-<form method="post">
-  <input type="password" name="password" placeholder="비밀번호" autofocus required>
-  <input type="hidden" name="next" value="{{ next_url }}">
-  <button>로그인</button>
-</form>
+<div class="auth-hero">
+  <div class="auth-card">
+    <div class="auth-logo">✓</div>
+    <h1 class="center">출석 시스템</h1>
+    <p class="center muted" style="margin-bottom:22px">교사 로그인</p>
+    <div class="card">
+      {% if err %}<div class="alert err" style="margin-bottom:14px">{{ err }}</div>{% endif %}
+      <form method="post" class="stack">
+        <div class="field">
+          <label for="pw">비밀번호</label>
+          <input id="pw" class="input" type="password" name="password" placeholder="교사 비밀번호" autofocus required>
+        </div>
+        <input type="hidden" name="next" value="{{ next_url }}">
+        <button class="btn primary block lg">로그인</button>
+      </form>
+    </div>
+    <p class="center small muted" style="margin-top:18px">학생은 교사가 제공한 QR을 스캔하세요</p>
+  </div>
+</div>
 {% endblock %}

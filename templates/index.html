@@ -1,45 +1,57 @@
 {% extends "base.html" %}
-{% block title %}출석 - 세션{% endblock %}
-{% block style %}
- body{font-family:system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px}
- h1{font-size:1.4rem} fieldset{margin:16px 0;border:1px solid #ddd;border-radius:6px}
- .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
- input,button,select{padding:8px;font-size:1rem} button{cursor:pointer}
- table{width:100%;border-collapse:collapse;margin-top:16px}
- td,th{border:1px solid #ddd;padding:8px;text-align:left}
- a{color:#06c} .closed{color:#999} label{font-size:.9rem;color:#555}
-{% endblock %}
+{% block title %}출석 세션{% endblock %}
 {% block body %}
-<h1>출석 세션</h1>
-<p><a href="{{ url_for('students.index') }}">학생 관리(개인 TOTP 등록)</a> ·
-   <a href="{{ url_for('auth.logout') }}">로그아웃</a></p>
-<form method="post" action="{{ url_for('sessions.create') }}">
- <fieldset>
-  <legend>새 세션</legend>
-  <div class="row">
-    <input name="name" placeholder="수업 이름 (예: 6/6 1교시)" required style="flex:1">
+{% include "_topbar.html" %}
+<main class="container">
+  <h1>출석 세션</h1>
+  <p class="muted" style="margin-top:-4px;margin-bottom:20px">수업을 만들고 회전 QR로 현장 출석을 받으세요.</p>
+
+  <div class="card">
+    <p class="card-title">새 세션 만들기</p>
+    <form method="post" action="{{ url_for('sessions.create') }}" class="stack">
+      <div class="field">
+        <label for="sname">수업 이름</label>
+        <input id="sname" class="input" name="name" placeholder="예: 6/6 1교시 자료구조" required autofocus>
+      </div>
+      <label class="checkbox">
+        <input type="checkbox" name="require_qr" value="1" checked>
+        <span><b>현장 확인 (권장)</b><br><span class="muted small">교실 화면의 회전 QR을 스캔해야 출석 — 원격 출석 차단</span></span>
+      </label>
+      <div class="row">
+        <button class="btn primary lg">세션 생성</button>
+      </div>
+    </form>
   </div>
-  <div class="row">
-    <label>개인 TOTP 방식 — 학생은 본인 인증앱 코드로 출석 (사전 등록 필요)</label>
+
+  <h3 style="margin:28px 0 12px">세션 목록</h3>
+  {% if sessions %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>이름</th><th>생성</th><th>상태</th><th></th></tr></thead>
+      <tbody>
+      {% for s in sessions %}
+        <tr>
+          <td class="num">{{ s.id }}</td>
+          <td><b>{{ s.name }}</b></td>
+          <td class="num small">{{ s.created_at }}</td>
+          <td>
+            {% if s.open %}<span class="badge on">● 열림</span>{% else %}<span class="badge off">닫힘</span>{% endif %}
+            {% if s.require_qr %}<span class="badge qr">회전 QR</span>{% endif %}
+          </td>
+          <td class="row" style="gap:6px">
+            <a class="btn ghost" style="padding:6px 12px" href="{{ url_for('sessions.teacher', session_id=s.id) }}">교사 화면</a>
+            <a class="btn ghost" style="padding:6px 12px" href="{{ url_for('sessions.roster', session_id=s.id) }}">출석부</a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
-  <div class="row">
-    <label><input type="checkbox" name="require_qr" value="1" checked> 현장 확인 (교실 화면 회전 QR 스캔 필수 — 원격 차단)</label>
+  {% else %}
+  <div class="card empty">
+    <div class="big">📋</div>
+    아직 세션이 없습니다.<br>위에서 첫 수업 세션을 만들어 보세요.
   </div>
-  <div class="row"><button>세션 생성</button></div>
- </fieldset>
-</form>
-<table>
- <tr><th>ID</th><th>이름</th><th>생성</th><th>상태</th><th>링크</th></tr>
- {% for s in sessions %}
- <tr>
-  <td>{{ s.id }}</td><td>{{ s.name }}</td>
-  <td>{{ s.created_at }}</td>
-  <td class="{{ '' if s.open else 'closed' }}">{{ '열림' if s.open else '닫힘' }}</td>
-  <td>
-    <a href="{{ url_for('sessions.teacher', session_id=s.id) }}">교사화면</a> ·
-    <a href="{{ url_for('sessions.roster', session_id=s.id) }}">출석부</a>
-  </td>
- </tr>
- {% endfor %}
-</table>
+  {% endif %}
+</main>
 {% endblock %}

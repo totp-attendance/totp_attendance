@@ -1,14 +1,25 @@
 {% extends "base.html" %}
-{% block title %}{{ st.name }} 등록 QR{% endblock %}
-{% block style %}
- body{font-family:system-ui,sans-serif;max-width:480px;margin:40px auto;padding:0 16px;text-align:center}
- a{color:#06c} .muted{color:#888;font-size:.9rem} code{background:#f2f2f2;padding:2px 6px;border-radius:4px}
-{% endblock %}
+{% block title %}{{ st.name }} · 등록 QR{% endblock %}
 {% block body %}
-<h2>{{ st.name }} ({{ st.student_id }})</h2>
-<p class="muted"><b>학생 폰 카메라</b>로 아래 QR을 스캔 → 이 기기에 등록 (앱 설치 불필요)<br>
-이후 수업 QR만 스캔하면 자동 출석</p>
-<img src="{{ url_for('students.qr_png', student_id=st.student_id) }}" width="220" height="220">
-<p class="muted">{{ '신규 등록됨' if is_new else '이미 등록된 학생 (기존 키 유지)' }}</p>
-<p><a href="{{ url_for('students.index') }}">← 학생 목록</a></p>
+{% include "_topbar.html" %}
+<main class="container narrow center">
+  <h1 style="margin-bottom:2px">{{ st.name }}</h1>
+  <p class="muted">학번 {{ st.student_id }}
+    {% if is_new %}<span class="badge on">신규 등록</span>{% else %}<span class="badge off">기존 키 유지</span>{% endif %}
+  </p>
+
+  <div class="card" style="margin-top:18px">
+    <p class="card-title">기기 등록 QR</p>
+    <div class="qrbox" style="margin:6px 0 14px">
+      <img src="{{ url_for('students.qr_png', student_id=st.student_id) }}" width="240" height="240" alt="등록 QR">
+    </div>
+    <div class="alert info" style="text-align:left">
+      <span>📱</span>
+      <span><b>학생 폰 카메라</b>로 이 QR을 스캔하세요. 그 기기 브라우저에 인증정보가 저장되어
+      이후 <b>수업 QR 스캔만으로 자동 출석</b>됩니다. (앱 설치 불필요)</span>
+    </div>
+  </div>
+
+  <p style="margin-top:18px"><a class="btn ghost" href="{{ url_for('students.index') }}">← 학생 목록</a></p>
+</main>
 {% endblock %}
