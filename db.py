@@ -131,7 +131,15 @@ _DDL_SQLITE = [
         mode TEXT NOT NULL DEFAULT 'session',
         geo_lat REAL, geo_lon REAL, geo_radius INTEGER,
         require_qr INTEGER NOT NULL DEFAULT 0,
-        owner_id INTEGER)""",
+        owner_id INTEGER,
+        course_id INTEGER)""",
+    """CREATE TABLE IF NOT EXISTS courses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        day INTEGER NOT NULL,
+        start_t TEXT, end_t TEXT, room TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))""",
     """CREATE TABLE IF NOT EXISTS students (
         student_id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -167,7 +175,15 @@ _DDL_PG = [
         mode TEXT NOT NULL DEFAULT 'session',
         geo_lat DOUBLE PRECISION, geo_lon DOUBLE PRECISION, geo_radius INTEGER,
         require_qr INTEGER NOT NULL DEFAULT 0,
-        owner_id INTEGER)""",
+        owner_id INTEGER,
+        course_id INTEGER)""",
+    """CREATE TABLE IF NOT EXISTS courses (
+        id SERIAL PRIMARY KEY,
+        owner_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        day INTEGER NOT NULL,
+        start_t TEXT, end_t TEXT, room TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now())""",
     """CREATE TABLE IF NOT EXISTS students (
         student_id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -200,6 +216,7 @@ def _migrate(conn):
         for stmt in [
             "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS require_qr INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS owner_id INTEGER",
+            "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS course_id INTEGER",
             "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS ip TEXT",
             "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION",
             "ALTER TABLE attendance ADD COLUMN IF NOT EXISTS lon DOUBLE PRECISION",
@@ -214,6 +231,7 @@ def _migrate(conn):
         "sessions": {
             "require_qr": "ALTER TABLE sessions ADD COLUMN require_qr INTEGER NOT NULL DEFAULT 0",
             "owner_id": "ALTER TABLE sessions ADD COLUMN owner_id INTEGER",
+            "course_id": "ALTER TABLE sessions ADD COLUMN course_id INTEGER",
         },
         "attendance": {
             "ip": "ALTER TABLE attendance ADD COLUMN ip TEXT",
@@ -284,15 +302,58 @@ def count_admins():
 # --- 세션 ------------------------------------------------------------------
 def create_session(name, secret, interval=30, mode="session",
                    geo_lat=None, geo_lon=None, geo_radius=None, require_qr=0,
-                   owner_id=None):
+                   owner_id=None, course_id=None):
     # interval/mode 는 dead 컬럼 → 기본값 사용(예약어 회피 위해 INSERT 안 함)
     with get_conn() as conn:
         return _ins(conn,
                     "INSERT INTO sessions "
-                    "(name, secret, geo_lat, geo_lon, geo_radius, require_qr, owner_id) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "(name, secret, geo_lat, geo_lon, geo_radius, require_qr, "
+                    "owner_id, course_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     (name, secret, geo_lat, geo_lon, geo_radius,
-                     1 if require_qr else 0, owner_id))
+                     1 if require_qr else 0, owner_id, course_id))
+
+
+def get_course_session(course_id, name):
+    """같은 과목·같은 이름(=과목+날짜) 세션 찾기 (출석 시작 중복 방지)."""
+    with get_conn() as conn:
+        return _q1(conn,
+                   "SELECT * FROM sessions WHERE course_id = ? AND name = ?",
+                   (course_id, name))
+
+
+# --- 시간표(과목) ----------------------------------------------------------
+def create_course(owner_id, name, day, start_t, end_t, room):
+    with get_conn() as conn:
+        return _ins(conn,
+                    "INSERT INTO courses (owner_id, name, day, start_t, end_t, room) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (owner_id, name, day, start_t, end_t, room))
+
+
+def get_course(course_id):
+    with get_conn() as conn:
+        return _q1(conn, "SELECT * FROM courses WHERE id = ?", (course_id,))
+
+
+def list_courses(owner_id):
+    with get_conn() as conn:
+        return _qa(conn,
+                   "SELECT * FROM courses WHERE owner_id = ? "
+                   "ORDER BY day, start_t", (owner_id,))
+
+
+def update_course(course_id, name, day, start_t, end_t, room):
+    with get_conn() as conn:
+        _ex(conn,
+            "UPDATE courses SET name = ?, day = ?, start_t = ?, end_t = ?, "
+            "room = ? WHERE id = ?",
+            (name, day, start_t, end_t, room, course_id))
+
+
+def delete_course(course_id):
+    with get_conn() as conn:
+        _ex(conn, "DELETE FROM courses WHERE id = ?", (course_id,))
 
 
 def backfill_session_owner(owner_id):

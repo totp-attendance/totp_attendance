@@ -437,6 +437,43 @@ def test_non_admin_cannot_set_enroll_code(teacher):
                   data={"code": "x"}).status_code == 403
 
 
+# --- 시간표(과목) -----------------------------------------------------------
+def test_timetable_start_creates_and_dedups(teacher):
+    me = db.get_teacher_by_username("admin")["id"]
+    teacher.post("/timetable/add",
+                 data={"name": "자료구조", "day": "0", "start_t": "10:00",
+                       "end_t": "11:30", "room": "301"})
+    cid = db.list_courses(me)[0]["id"]
+    r = teacher.post(f"/timetable/{cid}/start")
+    assert r.status_code == 302
+    sid = int(r.headers["Location"].rstrip("/").split("/")[-1])
+    s = db.get_session(sid)
+    assert s["course_id"] == cid and "자료구조" in s["name"]
+    # 재시작 → 같은 세션(중복 방지)
+    r2 = teacher.post(f"/timetable/{cid}/start")
+    sid2 = int(r2.headers["Location"].rstrip("/").split("/")[-1])
+    assert sid2 == sid
+
+
+def test_timetable_owner_isolation(teacher):
+    me = db.get_teacher_by_username("admin")["id"]
+    teacher.post("/timetable/add", data={"name": "내수업", "day": "1"})
+    cid = db.list_courses(me)[0]["id"]
+    other = _new_teacher(teacher, "prof1")
+    body = other.get("/timetable").data.decode()
+    assert "내수업" not in body                       # 타 교사엔 안 보임
+    assert other.post(f"/timetable/{cid}/start").status_code == 404
+    assert other.post(f"/timetable/{cid}/delete").status_code == 404
+
+
+def test_timetable_delete(teacher):
+    me = db.get_teacher_by_username("admin")["id"]
+    teacher.post("/timetable/add", data={"name": "삭제대상", "day": "2"})
+    cid = db.list_courses(me)[0]["id"]
+    teacher.post(f"/timetable/{cid}/delete")
+    assert db.get_course(cid) is None
+
+
 # --- 암호화 -----------------------------------------------------------------
 def test_db_is_encrypted():
     import sqlite3

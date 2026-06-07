@@ -28,7 +28,7 @@ runs SQL.
 ```
 app.py            Flask app factory (create_app). Sets secret_key, CSRF cookie
                   flags, calls db.init_db(), bootstrap_admin() (seeds first admin +
-                  backfills session owners), registers 5 blueprints. __main__ runs
+                  backfills session owners), registers 6 blueprints. __main__ runs
                   dev server (ssl_context="adhoc" if ATTENDANCE_SSL=1).
 config.py         Env-var settings + security helpers: password hashing (werkzeug
                   pbkdf2 hash_pw/verify_pw), admin seed (ADMIN_USER/ADMIN_PASSWORD),
@@ -64,6 +64,9 @@ views/students.py Student personal-TOTP enrollment, device-registration QR
                   (No Google Authenticator / otpauth — browser-authenticator only.)
 views/checkin.py  /check/<id> — _validate() runs the ordered gate checks, then
                   records attendance. AJAX branch returns JSON.
+views/timetable.py Per-teacher timetable: /timetable grid, add/edit/delete course,
+                  /timetable/<id>/start (creates or reuses today's session for the
+                  course → teacher screen). Owner-scoped.
 static/attendance.js  Browser-side TOTP (HMAC-SHA1, pyotp-compatible) +
                   localStorage device identity. Makes the phone browser the
                   authenticator (no app install needed). Uses WebCrypto when
@@ -74,7 +77,7 @@ templates/        Jinja, base.html inheritance.
 serve.py          Production WSGI (waitress).
 run.ps1           Loads .env into env vars, runs app.py (or serve.py with -Serve).
 templates/admin.html  account-management UI (admin-only).
-test_app.py       pytest suite (42 tests), temp encrypted DB per test (fixture seeds
+test_app.py       pytest suite (45 tests), temp encrypted DB per test (fixture seeds
                   an admin teacher; login() helper posts username+password).
 ```
 
@@ -82,12 +85,15 @@ test_app.py       pytest suite (42 tests), temp encrypted DB per test (fixture s
 
 - `teachers(id PK, username UNIQUE, pw_hash, is_admin, created_at)` — accounts.
   First admin seeded by `bootstrap_admin()` from `ADMIN_USER`/`ADMIN_PASSWORD`.
-- `sessions(id, name, secret, interval, created_at, open, mode, geo_lat, geo_lon, geo_radius, require_qr, owner_id)`
-  — `owner_id` → teachers.id (session owner). `secret`/`interval`/`mode` and
+- `sessions(..., require_qr, owner_id, course_id)`
+  — `owner_id` → teachers.id (session owner), `course_id` → courses.id (optional link).
+  `secret`/`interval`/`mode` and
   `geo_lat`/`geo_lon`/`geo_radius` are dead columns (personal-TOTP mode; geofence
   removed). Kept for NOT NULL / migration compatibility; no code reads them.
 - `students(student_id PK, name, secret, created_at)` — global, shared across all
   teachers (a student attends multiple classes), session-independent.
+- `courses(id, owner_id, name, day, start_t, end_t, room, created_at)` — per-teacher
+  weekly timetable (day 0=Mon..6=Sun). `start_t`/`end_t` = "HH:MM".
 - `settings(key PK, value)` — global config (e.g. `enroll_code` for student
   self-registration; empty/unset → self-registration disabled).
 - `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)`

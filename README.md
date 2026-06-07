@@ -58,6 +58,13 @@ python app.py            # 개발 서버
 - 보안 메모: secret이 기기 브라우저에 저장됨(인증앱과 동급 신뢰). 공용 PC 사용 금지,
   기기 분실 시 교사가 해당 학생 재등록(새 secret 발급).
 
+## 교수별 시간표 (과목)
+교수마다 본인 정규 수업을 등록하고 거기서 출석을 바로 시작.
+- `/timetable` — 본인 **주간 시간표 그리드**(월~금) + 수업 추가/수정/삭제 (과목명·요일·시작·종료·강의실).
+- **오늘 수업** 박스 → **[출석 시작]** 1번 → 세션 자동 생성(이름=과목+날짜, 현장확인 QR 자동) → 교사 화면.
+- **중복 방지**: 같은 과목·같은 날 이미 시작했으면 그 세션으로 이동.
+- 세션은 `course_id` 로 과목에 연결(과목별 이력 집계용). 소유 격리(본인 시간표만).
+
 ## 학생 자가등록 (선택)
 교사가 일일이 등록하는 대신 학생이 직접 등록하게 할 수 있음.
 - 관리자가 `/admin`에서 **등록키** 설정 → 자가등록 활성화 (빈 값 = 비활성).
@@ -140,8 +147,10 @@ epoch만 허용. QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 → 외부
 
 ## 데이터 모델
 - `teachers(id PK, username UNIQUE, pw_hash, is_admin, created_at)` — 교사 계정
-- `sessions(id, name, secret, interval, created_at, open, mode, geo_lat, geo_lon, geo_radius, require_qr, owner_id)`
-  — `owner_id` = 소유 교사(teachers.id). geo_*·secret·interval·mode 는 미사용(dead) 컬럼.
+- `sessions(..., require_qr, owner_id, course_id)`
+  — `owner_id` = 소유 교사(teachers.id), `course_id` = 연결 과목(courses.id, 선택).
+  geo_*·secret·interval·mode 는 미사용(dead) 컬럼.
+- `courses(id, owner_id, name, day, start_t, end_t, room, created_at)` — 교수별 주간 시간표(과목)
 - `students(student_id PK, name, secret, created_at)` — 개인 TOTP 등록 (학교 공용)
 - `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)` + UNIQUE(session_id, student_id)
 - `settings(key PK, value)` — 전역 설정 (예: `enroll_code` 자가등록 등록키)

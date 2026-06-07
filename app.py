@@ -19,6 +19,7 @@ from views.sessions import bp as sessions_bp
 from views.students import bp as students_bp
 from views.checkin import bp as checkin_bp
 from views.admin import bp as admin_bp
+from views.timetable import bp as timetable_bp
 
 
 def bootstrap_admin():
@@ -49,6 +50,7 @@ def create_app():
     app.register_blueprint(students_bp)
     app.register_blueprint(checkin_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(timetable_bp)
     return app
 
 
