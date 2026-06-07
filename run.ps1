@@ -16,7 +16,8 @@ Get-Content $envFile | ForEach-Object {
     }
 }
 
+$port = if ($env:ATTENDANCE_PORT) { $env:ATTENDANCE_PORT } else { '5000' }
 Write-Host "교사 비밀번호: $env:ATTENDANCE_TEACHER_PASSWORD" -ForegroundColor Cyan
-Write-Host "서버: http://localhost:$($env:ATTENDANCE_PORT ?? '5000')  → /login" -ForegroundColor Cyan
+Write-Host "서버: http://localhost:$port  → /login" -ForegroundColor Cyan
 
 if ($Serve) { python serve.py } else { python app.py }
