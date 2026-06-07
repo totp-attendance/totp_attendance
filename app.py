@@ -18,6 +18,17 @@ from views.auth import bp as auth_bp
 from views.sessions import bp as sessions_bp
 from views.students import bp as students_bp
 from views.checkin import bp as checkin_bp
+from views.admin import bp as admin_bp
+
+
+def bootstrap_admin():
+    """교사 계정이 하나도 없으면 첫 관리자를 시드하고, 소유자 없는 기존
+    세션을 그 관리자 소유로 백필 (구버전 DB 업그레이드 1회)."""
+    if db.count_teachers() == 0:
+        admin_id = db.create_teacher(
+            config.ADMIN_USER, config.hash_pw(config.ADMIN_PASSWORD), is_admin=1
+        )
+        db.backfill_session_owner(admin_id)
 
 
 def create_app():
@@ -32,10 +43,12 @@ def create_app():
         SESSION_COOKIE_SECURE=config.USE_SSL,
     )
     db.init_db()
+    bootstrap_admin()
     app.register_blueprint(auth_bp)
     app.register_blueprint(sessions_bp)
     app.register_blueprint(students_bp)
     app.register_blueprint(checkin_bp)
+    app.register_blueprint(admin_bp)
     return app
 
 

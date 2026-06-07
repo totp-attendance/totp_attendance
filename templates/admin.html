@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}계정 관리{% endblock %}
+{% block body %}
+{% include "_topbar.html" %}
+<main class="container">
+  <h1>계정 관리</h1>
+  <p class="muted" style="margin-top:-4px;margin-bottom:20px">교사 계정을 생성·삭제하고 비밀번호를 초기화합니다. (관리자 전용)</p>
+
+  {% if err %}<div class="alert err" style="margin-bottom:14px">{{ err }}</div>{% endif %}
+  {% if msg %}<div class="alert ok" style="margin-bottom:14px">{{ msg }}</div>{% endif %}
+
+  <div class="card">
+    <p class="card-title">새 교사 계정</p>
+    <form method="post" action="{{ url_for('admin.create') }}">
+      <div class="row" style="align-items:flex-end">
+        <div class="field" style="flex:1;margin:0">
+          <label for="u">아이디</label>
+          <input id="u" class="input" name="username" placeholder="예: prof_kim" required>
+        </div>
+        <div class="field" style="flex:1;margin:0">
+          <label for="p">비밀번호</label>
+          <input id="p" class="input" type="password" name="password" placeholder="4자 이상" required>
+        </div>
+        <label class="checkbox" style="flex:none">
+          <input type="checkbox" name="is_admin" value="1"> 관리자
+        </label>
+        <button class="btn primary" style="height:46px">계정 생성</button>
+      </div>
+    </form>
+  </div>
+
+  <h3 style="margin:28px 0 12px">교사 목록 <span class="muted small">({{ teachers|length }}명)</span></h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>아이디</th><th>역할</th><th>생성일</th><th>비밀번호 초기화</th><th></th></tr></thead>
+      <tbody>
+      {% for t in teachers %}
+        <tr>
+          <td><b>{{ t.username }}</b>{% if t.id == me %} <span class="muted small">(나)</span>{% endif %}</td>
+          <td>{% if t.is_admin %}<span class="badge qr">관리자</span>{% else %}<span class="badge off">교사</span>{% endif %}</td>
+          <td class="num small">{{ t.created_at }}</td>
+          <td>
+            <form method="post" action="{{ url_for('admin.reset', teacher_id=t.id) }}" class="row" style="gap:6px;margin:0">
+              <input class="input" type="password" name="password" placeholder="새 비번" style="width:130px;padding:7px 10px">
+              <button class="btn ghost" style="padding:7px 12px">초기화</button>
+            </form>
+          </td>
+          <td>
+            {% if t.id != me %}
+            <form method="post" action="{{ url_for('admin.delete', teacher_id=t.id) }}" style="margin:0">
+              <button class="btn danger" style="padding:7px 12px" onclick="return confirm('{{ t.username }} 계정을 삭제할까요? (세션은 나에게 인계)')">삭제</button>
+            </form>
+            {% else %}<span class="muted small">—</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</main>
+{% endblock %}

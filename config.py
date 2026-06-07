@@ -29,22 +29,32 @@ if not SECRET_KEY:
     )
 
 
-# --- 교사 비밀번호 ----------------------------------------------------------
-TEACHER_PASSWORD = os.environ.get("ATTENDANCE_TEACHER_PASSWORD")
-if not TEACHER_PASSWORD:
-    TEACHER_PASSWORD = "admin"
+# --- 교사 계정 / 첫 관리자 시드 ---------------------------------------------
+# 다중 교사 계정(teachers 테이블)으로 인증. 첫 실행 시 관리자 1명을 시드.
+#   ATTENDANCE_ADMIN_USER / ATTENDANCE_ADMIN_PASSWORD 우선.
+#   없으면 하위호환으로 기존 ATTENDANCE_TEACHER_PASSWORD 를 admin 비번으로 사용.
+from werkzeug.security import generate_password_hash, check_password_hash
+
+ADMIN_USER = os.environ.get("ATTENDANCE_ADMIN_USER", "admin")
+ADMIN_PASSWORD = (os.environ.get("ATTENDANCE_ADMIN_PASSWORD")
+                  or os.environ.get("ATTENDANCE_TEACHER_PASSWORD"))
+if not ADMIN_PASSWORD:
+    ADMIN_PASSWORD = "admin"
     print(
-        "[WARN] ATTENDANCE_TEACHER_PASSWORD 미설정 — 기본값 'admin' 사용. "
+        "[WARN] ATTENDANCE_ADMIN_PASSWORD 미설정 — 첫 관리자 비번 기본값 'admin'. "
         "운영 시 반드시 변경.",
         file=sys.stderr,
     )
 
 
-def check_password(candidate):
-    """상수시간 비교 (타이밍 공격 방지)."""
-    if candidate is None:
+def hash_pw(password):
+    return generate_password_hash(password)
+
+
+def verify_pw(pw_hash, candidate):
+    if not pw_hash or candidate is None:
         return False
-    return hmac.compare_digest(candidate, TEACHER_PASSWORD)
+    return check_password_hash(pw_hash, candidate)
 
 
 # --- 프록시 신뢰 (X-Forwarded-For) ------------------------------------------

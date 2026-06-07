@@ -15,10 +15,10 @@ PW = "test-pw"
 
 @pytest.fixture(autouse=True)
 def temp_db(tmp_path):
-    """각 테스트마다 새 임시 DB + 고정 교사 비번 + 상태 초기화."""
+    """각 테스트마다 새 임시 DB + admin 교사 시드 + 상태 초기화."""
     db.DB_PATH = str(tmp_path / "test.db")
     db.init_db()
-    config.TEACHER_PASSWORD = PW
+    db.create_teacher("admin", config.hash_pw(PW), is_admin=1)  # 관리자 시드
     config._fail_log.clear()
     config.ALLOWED_SUBNETS = []
     config.TRUST_PROXY = False
@@ -30,10 +30,14 @@ def client():
     return appmod.app.test_client()
 
 
+def login(client, username="admin", password=PW):
+    return client.post("/login", data={"username": username, "password": password})
+
+
 @pytest.fixture
 def teacher(client):
-    """로그인된 교사 클라이언트."""
-    client.post("/login", data={"password": PW})
+    """로그인된 관리자 교사 클라이언트."""
+    login(client)
     return client
 
 
@@ -64,13 +68,18 @@ def test_teacher_routes_require_login(client):
 
 
 def test_wrong_password_rejected(client):
-    r = client.post("/login", data={"password": "nope"})
+    r = client.post("/login", data={"username": "admin", "password": "nope"})
     assert "틀렸" in r.data.decode()
 
 
 def test_login_success(client):
-    r = client.post("/login", data={"password": PW})
+    r = login(client)
     assert r.status_code == 302
+
+
+def test_unknown_user_rejected(client):
+    r = client.post("/login", data={"username": "ghost", "password": PW})
+    assert "틀렸" in r.data.decode()
 
 
 def test_login_rate_limit(client):
@@ -294,6 +303,80 @@ def test_csv_formula_injection_neutralized(teacher):
     text = r.data.decode("utf-8-sig")
     assert "'=1+2" in text  # 무력화됨
     assert ",=1+2" not in text  # 원본 수식 그대로 안 나감
+
+
+# --- 다중 교사 계정 / 권한 / 격리 -------------------------------------------
+def _new_teacher(admin, username, password="pw1234", is_admin=False):
+    data = {"username": username, "password": password}
+    if is_admin:
+        data["is_admin"] = "1"
+    admin.post("/admin/create", data=data)
+    c = appmod.app.test_client()
+    login(c, username, password)
+    return c
+
+
+def test_admin_create_teacher_and_login(teacher):
+    c = _new_teacher(teacher, "prof1")
+    assert c.get("/").status_code == 200  # 로그인 성공
+
+
+def test_duplicate_username_rejected(teacher):
+    teacher.post("/admin/create", data={"username": "prof1", "password": "pw1234"})
+    r = teacher.post("/admin/create", data={"username": "prof1", "password": "xxxx"})
+    assert "이미 존재" in r.data.decode()
+
+
+def test_non_admin_blocked_from_admin(teacher):
+    c = _new_teacher(teacher, "prof1")  # 일반 교사
+    assert c.get("/admin").status_code == 403
+    assert c.post("/admin/create",
+                  data={"username": "x", "password": "pw1234"}).status_code == 403
+
+
+def test_session_owner_isolation(teacher):
+    owner = _new_teacher(teacher, "prof1")
+    other = _new_teacher(teacher, "prof2")
+    sid = make_session(owner, name="프로프1수업")
+    # 타 교사: 목록에 안 보이고 직접 접근도 404
+    assert "프로프1수업" not in other.get("/").data.decode()
+    assert other.get(f"/teacher/{sid}").status_code == 404
+    assert other.get(f"/roster/{sid}").status_code == 404
+    assert other.get(f"/api/code/{sid}").status_code == 404
+    # 본인은 접근 가능
+    assert owner.get(f"/teacher/{sid}").status_code == 200
+
+
+def test_admin_sees_all_sessions(teacher):
+    owner = _new_teacher(teacher, "prof1")
+    sid = make_session(owner, name="프로프1수업")
+    assert "프로프1수업" in teacher.get("/").data.decode()   # 관리자 전체 조회
+    assert teacher.get(f"/teacher/{sid}").status_code == 200  # 관리자 접근 허용
+
+
+def test_cannot_delete_self(teacher):
+    me = db.get_teacher_by_username("admin")["id"]
+    r = teacher.post(f"/admin/{me}/delete")
+    assert "본인 계정" in r.data.decode()
+    assert db.get_teacher(me) is not None  # 삭제 안 됨
+
+
+def test_delete_teacher_reassigns_sessions(teacher):
+    owner = _new_teacher(teacher, "prof1")
+    sid = make_session(owner, name="인계대상")
+    tid = db.get_teacher_by_username("prof1")["id"]
+    teacher.post(f"/admin/{tid}/delete")
+    assert db.get_teacher(tid) is None              # 계정 삭제됨
+    assert db.get_session(sid)["owner_id"] == db.get_teacher_by_username("admin")["id"]  # 세션 인계
+
+
+def test_password_reset(teacher):
+    _new_teacher(teacher, "prof1", "oldpw1")
+    tid = db.get_teacher_by_username("prof1")["id"]
+    teacher.post(f"/admin/{tid}/reset", data={"password": "newpw2"})
+    c = appmod.app.test_client()
+    assert login(c, "prof1", "oldpw1").status_code == 200  # 옛 비번 실패(로그인폼 재표시)
+    assert login(c, "prof1", "newpw2").status_code == 302  # 새 비번 성공
 
 
 # --- 암호화 -----------------------------------------------------------------

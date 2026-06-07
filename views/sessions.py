@@ -10,7 +10,7 @@ from flask import (
 
 import db
 import config
-from helpers import require_teacher, png_response
+from helpers import (require_teacher, png_response, current_teacher_id, is_admin)
 
 bp = Blueprint("sessions", __name__)
 
@@ -23,10 +23,24 @@ def _csv_safe(v):
     return s
 
 
+def _owned_session(session_id):
+    """세션 조회 + 소유권 확인. 본인 것 아니고 관리자도 아니면 404
+    (존재 여부 노출 방지)."""
+    s = db.get_session(session_id)
+    if not s:
+        abort(404)
+    if not is_admin() and s.get("owner_id") != current_teacher_id():
+        abort(404)
+    return s
+
+
 @bp.route("/")
 @require_teacher
 def index():
-    return render_template("index.html", sessions=db.list_sessions())
+    # 관리자는 전체, 일반 교사는 본인 세션만
+    owner = None if is_admin() else current_teacher_id()
+    return render_template("index.html", sessions=db.list_sessions(owner),
+                           is_admin=is_admin())
 
 
 @bp.route("/create", methods=["POST"])
@@ -38,16 +52,14 @@ def create():
     require_qr = 1 if request.form.get("require_qr") else 0
     # 개인 TOTP 방식만 사용. secret 컬럼은 NOT NULL 충족용(미사용).
     sid = db.create_session(name, pyotp.random_base32(), 30, "personal",
-                            require_qr=require_qr)
+                            require_qr=require_qr, owner_id=current_teacher_id())
     return redirect(url_for("sessions.teacher", session_id=sid))
 
 
 @bp.route("/teacher/<int:session_id>")
 @require_teacher
 def teacher(session_id):
-    s = db.get_session(session_id)
-    if not s:
-        abort(404)
+    s = _owned_session(session_id)
     check_url = url_for("checkin.check", session_id=session_id, _external=True)
     return render_template("teacher.html", s=s, check_url=check_url,
                            qr_rotate=config.QR_ROTATE_SEC)
@@ -57,9 +69,7 @@ def teacher(session_id):
 @require_teacher
 def api_code(session_id):
     # 개인 TOTP 방식: 회전 코드 없음. 실시간 출석수만 제공.
-    s = db.get_session(session_id)
-    if not s:
-        abort(404)
+    _owned_session(session_id)
     return jsonify(count=len(db.list_attendance(session_id)))
 
 
@@ -78,9 +88,7 @@ def qr(session_id):
 def qr_challenge(session_id):
     """회전 QR — 현재 챌린지를 담은 출석 URL의 QR PNG.
     교사 화면(인증됨)에서만 가져올 수 있어 외부서 챌린지 못 빼감."""
-    s = db.get_session(session_id)
-    if not s:
-        abort(404)
+    _owned_session(session_id)
     token = config.challenge_token(session_id)
     url = url_for("checkin.check", session_id=session_id, _external=True)
     return png_response(f"{url}?c={token}")
@@ -89,9 +97,7 @@ def qr_challenge(session_id):
 @bp.route("/roster/<int:session_id>")
 @require_teacher
 def roster(session_id):
-    s = db.get_session(session_id)
-    if not s:
-        abort(404)
+    s = _owned_session(session_id)
     return render_template("roster.html", s=s,
                            rows=db.list_attendance(session_id))
 
@@ -99,9 +105,7 @@ def roster(session_id):
 @bp.route("/toggle/<int:session_id>", methods=["POST"])
 @require_teacher
 def toggle(session_id):
-    s = db.get_session(session_id)
-    if not s:
-        abort(404)
+    s = _owned_session(session_id)
     db.set_session_open(session_id, not s["open"])
     return redirect(url_for("sessions.roster", session_id=session_id))
 
@@ -109,9 +113,7 @@ def toggle(session_id):
 @bp.route("/export/<int:session_id>.csv")
 @require_teacher
 def export_csv(session_id):
-    s = db.get_session(session_id)
-    if not s:
-        abort(404)
+    _owned_session(session_id)
     rows = db.list_attendance(session_id)
     buf = io.StringIO()
     w = csv.writer(buf)

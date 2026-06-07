@@ -3,22 +3,33 @@
 학생별 개인 TOTP(폰 브라우저가 인증기, 앱 설치 불필요)로 출석 체크. 대리출석 차단 + 현장확인(회전 QR) + DB 암호화.
 
 ## 구성
-- `app.py` — Flask 웹 서버 (교사화면 + 학생출석 + 학생관리 + 출석부/CSV)
+- `app.py` — Flask 웹 서버 (앱 팩토리 + 첫 관리자 부트스트랩 + 블루프린트 등록)
 - `db.py` — SQLCipher 저장소 (DB 파일 전체 암호화 + 스키마 마이그레이션)
-- `config.py` — 환경변수 설정 + 보안 헬퍼 (인증/레이트리밋/IP제한/회전QR 챌린지)
+- `config.py` — 환경변수 설정 + 보안 헬퍼 (비번해시/레이트리밋/IP제한/회전QR 챌린지)
+- `views/admin.py` — 교사 계정 관리 (관리자 전용)
 - `serve.py` — 운영용 WSGI 실행 (waitress)
 - `attendance.db` — 실행 시 자동 생성 (암호화됨)
 
 ## 실행
 ```powershell
 pip install -r requirements.txt
-$env:ATTENDANCE_DB_KEY           = "강한-DB키"     # 운영 필수
-$env:ATTENDANCE_SECRET_KEY       = "세션서명키"     # 운영 필수
-$env:ATTENDANCE_TEACHER_PASSWORD = "교사비번"       # 운영 필수
+$env:ATTENDANCE_DB_KEY        = "강한-DB키"     # 운영 필수
+$env:ATTENDANCE_SECRET_KEY    = "세션서명키"     # 운영 필수
+$env:ATTENDANCE_ADMIN_USER    = "admin"        # 첫 관리자 아이디 (기본 admin)
+$env:ATTENDANCE_ADMIN_PASSWORD= "관리자비번"    # 첫 관리자 비번 (운영 필수)
 python app.py            # 개발 서버
 # 또는 운영: python serve.py   (waitress)
 ```
-서버: http://localhost:5000 → `/login` 교사 비밀번호 입력
+서버: http://localhost:5000 → `/login` 아이디·비밀번호 입력
+
+## 교사 계정 (다중 교사)
+- **첫 실행 시** `ATTENDANCE_ADMIN_USER`/`ATTENDANCE_ADMIN_PASSWORD` 로 관리자 1명 자동 생성
+  (없으면 하위호환으로 `ATTENDANCE_TEACHER_PASSWORD` 사용, 그것도 없으면 `admin`/`admin`).
+- 관리자는 `/admin`(계정 관리)에서 **교사 계정 생성·삭제·비밀번호 초기화**. 관리자 권한 부여 가능.
+- **세션 격리**: 일반 교사는 본인 세션·출석부만 보고 관리. 관리자는 전체 조회·접근.
+  교사 삭제 시 그 세션은 작업 관리자에게 인계(출석 데이터 보존).
+- 학생 등록(`/students`)은 **학교 공용** — 모든 교사가 공유(한 학생이 여러 수업 수강).
+- 비밀번호는 `werkzeug`(pbkdf2)로 **해시 저장** (평문 아님).
 
 ## 인증 방식: 학생별 개인 TOTP (브라우저 인증기)
 학생 폰 브라우저 자체가 인증기. 본인 secret 으로 코드 생성. **대리출석 차단** —
@@ -69,7 +80,9 @@ epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 →
 |---|---|---|
 | `ATTENDANCE_DB_KEY` | SQLCipher DB 암호화 키 | 개발용 기본키 + 경고 |
 | `ATTENDANCE_SECRET_KEY` | Flask 세션 쿠키 서명 | 임시 랜덤(재시작 시 로그인 풀림) |
-| `ATTENDANCE_TEACHER_PASSWORD` | 교사 로그인 비번 | `admin` + 경고 |
+| `ATTENDANCE_ADMIN_USER` | 첫 관리자 아이디 (첫 실행 시드) | `admin` |
+| `ATTENDANCE_ADMIN_PASSWORD` | 첫 관리자 비번 (첫 실행 시드) | `ATTENDANCE_TEACHER_PASSWORD` → 없으면 `admin` + 경고 |
+| `ATTENDANCE_TEACHER_PASSWORD` | (하위호환) 관리자 비번 미설정 시 대체 | — |
 | `ATTENDANCE_ALLOWED_SUBNETS` | 출석 허용 IP 대역(쉼표, 예: `192.168.0.,10.0.`) | 제한 없음 |
 | `ATTENDANCE_TRUST_PROXY` | `1` 이면 `X-Forwarded-For` 신뢰(신뢰 리버스프록시 뒤에서만) | off (위조 방지, remote_addr 만) |
 | `ATTENDANCE_QR_ROTATE_SEC` | 회전 QR 챌린지 갱신 주기(초) | `10` |
@@ -82,13 +95,17 @@ epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 →
 ## 보안
 - **DB 암호화**: SQLCipher AES-256, DB 파일 전체 암호화 — 일반 `sqlite3`로 못 엶.
   키 분실 = 복구 불가. 키를 코드/git에 넣지 말 것.
-- **교사 인증**: 모든 교사 라우트 로그인 필요. `/check`·`/qr`만 공개. `/api/code`도 보호 → 외부서 코드 못 읽음.
+- **교사 인증**: 아이디/비밀번호 로그인 (비번 `werkzeug` pbkdf2 해시 저장). 모든 교사
+  라우트 로그인 필요. `/check`·`/qr`·`/setup`만 공개. `/api/code`·`/qrc`도 보호.
+- **계정 권한**: 관리자/일반 교사 2단계. `/admin` 계정관리는 관리자 전용(비관리자 403).
+- **세션 소유 격리**: 일반 교사는 본인 세션만 접근(타 세션 404로 존재 은닉). 관리자는 전체.
+- **세션 고정 방지**: 로그인 성공 시 세션 초기화 후 재발급.
 - **무차별 대입 방지**: 출석은 `(session_id, IP, 학번)`, 교사 로그인은 `("login", IP)`
   당 슬라이딩 윈도우 레이트리밋 (공용 IP 라도 한 명 실패가 반 전체를 잠그지 않음).
 - **네트워크 제한**: `ATTENDANCE_ALLOWED_SUBNETS` IP 대역. `X-Forwarded-For` 는
   **기본 무시**(클라 위조 가능) — 신뢰 리버스프록시 뒤에서 `ATTENDANCE_TRUST_PROXY=1`
   일 때만 사용. 안 그러면 `remote_addr` 만 신뢰 → IP제한·레이트리밋·감사 위조 방지.
-- **상수시간 비번 비교**: `hmac.compare_digest`.
+- **상수시간 비교**: 회전 QR 챌린지 nonce 는 `hmac.compare_digest`. 비번은 pbkdf2 해시 검증.
 - **CSRF 방어**: 세션쿠키 `SameSite=Strict` + `HttpOnly` (HTTPS 면 `Secure`) →
   악성사이트가 교사 세션으로 세션생성·학생삭제 강제 불가.
 - **출석여부 오라클 차단**: 중복출석 검사를 TOTP 검증 *뒤*에 수행 →
@@ -105,8 +122,10 @@ epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 →
 - 스키마 마이그레이션: 구버전 DB 열면 누락 컬럼 자동 추가 (`db._migrate`).
 
 ## 데이터 모델
-- `sessions(id, name, secret, interval, created_at, open, mode, geo_lat, geo_lon, geo_radius)`
-- `students(student_id PK, name, secret, created_at)` — 개인 TOTP 등록
+- `teachers(id PK, username UNIQUE, pw_hash, is_admin, created_at)` — 교사 계정
+- `sessions(id, name, secret, interval, created_at, open, mode, geo_lat, geo_lon, geo_radius, require_qr, owner_id)`
+  — `owner_id` = 소유 교사(teachers.id). geo_*·secret·interval·mode 는 미사용(dead) 컬럼.
+- `students(student_id PK, name, secret, created_at)` — 개인 TOTP 등록 (학교 공용)
 - `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)` + UNIQUE(session_id, student_id)
 
 ## 같은 와이파이에서 학생 폰 접속

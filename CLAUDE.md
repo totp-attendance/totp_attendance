@@ -27,18 +27,26 @@ runs SQL.
 
 ```
 app.py            Flask app factory (create_app). Sets secret_key, CSRF cookie
-                  flags, calls db.init_db(), registers 4 blueprints. __main__ runs
+                  flags, calls db.init_db(), bootstrap_admin() (seeds first admin +
+                  backfills session owners), registers 5 blueprints. __main__ runs
                   dev server (ssl_context="adhoc" if ATTENDANCE_SSL=1).
-config.py         Env-var settings + security helpers: password check, IP allowlist,
-                  in-memory rate limiter, rotating-QR challenge
-                  (challenge_token / verify_challenge).
+config.py         Env-var settings + security helpers: password hashing (werkzeug
+                  pbkdf2 hash_pw/verify_pw), admin seed (ADMIN_USER/ADMIN_PASSWORD),
+                  IP allowlist, X-Forwarded-For gating (TRUST_PROXY), in-memory rate
+                  limiter, rotating-QR challenge (challenge_token / verify_challenge).
 db.py             SQLCipher store. ONLY place that touches the DB. get_conn()
                   applies PRAGMA key before any query. Schema + _migrate (adds
-                  missing columns via PRAGMA table_info). CRUD helpers.
-helpers.py        require_teacher decorator, client_ip, parse_float, png_response,
-                  PERSONAL_INTERVAL=30.
-views/auth.py     /login (open-redirect-guarded), /logout.
-views/sessions.py Session CRUD, /teacher, /api/code (count), /qr (static),
+                  missing columns via PRAGMA table_info). CRUD helpers (teachers,
+                  sessions w/ owner_id, students, attendance).
+helpers.py        require_teacher / require_admin decorators, current_teacher_id,
+                  is_admin, client_ip, parse_float, png_response, PERSONAL_INTERVAL=30.
+views/auth.py     /login (username+password, pbkdf2 verify, open-redirect + session-
+                  fixation guarded, rate-limited), /logout.
+views/admin.py    Teacher account management (admin-only): /admin list, /admin/create,
+                  /admin/<id>/delete (reassigns sessions, guards self/last-admin),
+                  /admin/<id>/reset password.
+views/sessions.py Owner-scoped session CRUD (_owned_session 404-guards non-owners,
+                  admin sees all), /teacher, /api/code (count), /qr (static),
                   /qrc (rotating challenge QR, login-required), /roster, /toggle,
                   /export CSV. _csv_safe() neutralizes formula injection.
 views/students.py Student personal-TOTP enrollment, device-registration QR
@@ -56,16 +64,21 @@ static/attendance.js  Browser-side TOTP (HMAC-SHA1, pyotp-compatible) +
 templates/        Jinja, base.html inheritance.
 serve.py          Production WSGI (waitress).
 run.ps1           Loads .env into env vars, runs app.py (or serve.py with -Serve).
-test_app.py       pytest suite (27 tests), temp encrypted DB per test.
+templates/admin.html  account-management UI (admin-only).
+test_app.py       pytest suite (36 tests), temp encrypted DB per test (fixture seeds
+                  an admin teacher; login() helper posts username+password).
 ```
 
 ## Data model
 
-- `sessions(id, name, secret, interval, created_at, open, mode, geo_lat, geo_lon, geo_radius, require_qr)`
-  — `secret`/`interval`/`mode` and `geo_lat`/`geo_lon`/`geo_radius` are dead columns
-  (personal-TOTP mode; geofence was removed). Kept in schema for NOT NULL / migration
-  compatibility; no code reads or writes them.
-- `students(student_id PK, name, secret, created_at)` — global, session-independent.
+- `teachers(id PK, username UNIQUE, pw_hash, is_admin, created_at)` — accounts.
+  First admin seeded by `bootstrap_admin()` from `ADMIN_USER`/`ADMIN_PASSWORD`.
+- `sessions(id, name, secret, interval, created_at, open, mode, geo_lat, geo_lon, geo_radius, require_qr, owner_id)`
+  — `owner_id` → teachers.id (session owner). `secret`/`interval`/`mode` and
+  `geo_lat`/`geo_lon`/`geo_radius` are dead columns (personal-TOTP mode; geofence
+  removed). Kept for NOT NULL / migration compatibility; no code reads them.
+- `students(student_id PK, name, secret, created_at)` — global, shared across all
+  teachers (a student attends multiple classes), session-independent.
 - `attendance(id, session_id, student_id, student_name, checked_at, ip, lat, lon)`
   with `UNIQUE(session_id, student_id)` (duplicate-attendance guard).
 
@@ -129,7 +142,9 @@ no auto-reload) before any live/E2E check.
 |---|---|---|
 | `ATTENDANCE_DB_KEY` | SQLCipher encryption key | dev default key + warning |
 | `ATTENDANCE_SECRET_KEY` | Flask session signing | random per process (logins drop on restart) |
-| `ATTENDANCE_TEACHER_PASSWORD` | teacher login | `admin` + warning |
+| `ATTENDANCE_ADMIN_USER` | first-admin username (seeded on first run) | `admin` |
+| `ATTENDANCE_ADMIN_PASSWORD` | first-admin password (seeded on first run) | falls back to `ATTENDANCE_TEACHER_PASSWORD`, else `admin` + warning |
+| `ATTENDANCE_TEACHER_PASSWORD` | legacy fallback for admin password | — |
 | `ATTENDANCE_ALLOWED_SUBNETS` | comma IP-prefix allowlist (e.g. `192.168.0.,10.0.`) | no restriction |
 | `ATTENDANCE_TRUST_PROXY` | `1` → trust `X-Forwarded-For` (only behind a trusted reverse proxy) | off (use remote_addr only) |
 | `ATTENDANCE_QR_ROTATE_SEC` | rotating-QR challenge period | `10` |
@@ -142,9 +157,15 @@ no auto-reload) before any live/E2E check.
 
 - **DB encryption**: SQLCipher AES-256, whole-file. `ATTENDANCE_DB_KEY` loss =
   unrecoverable DB. Changing the key breaks the existing DB.
-- **Teacher auth**: all teacher routes require login. Only `/check`, `/qr`, `/setup`
-  are public. `/qrc` (challenge QR) and `/api/code` are login-gated so challenges/
-  codes can't be pulled externally.
+- **Teacher auth**: username + password, hashed with werkzeug pbkdf2
+  (`config.hash_pw`/`verify_pw`). Login regenerates the session (fixation guard).
+  All teacher routes require login; only `/check`, `/qr`, `/setup` are public.
+  `/qrc` and `/api/code` are login-gated.
+- **Accounts & roles**: `teachers.is_admin`. `/admin/*` is admin-only (`require_admin`
+  → 403 for non-admins). Self-delete and last-admin-delete are blocked.
+- **Session ownership**: `_owned_session()` 404-guards sessions a teacher doesn't own
+  (hides existence); admins bypass and see all. Deleting a teacher reassigns their
+  sessions to the acting admin (attendance preserved).
 - **Rate limit**: sliding window — check-in keyed on `(session_id, ip, student_id)`,
   teacher login keyed on `("login", ip)`. A shared public IP won't lock out the class.
 - **X-Forwarded-For**: ignored by default (client-spoofable) — `client_ip()` uses
@@ -156,7 +177,8 @@ no auto-reload) before any live/E2E check.
 - **Secret leak prevention**: device-registration QR carries the secret in the URL
   fragment (`#`), which is never sent to the server → not in access logs / history.
 - **CSV formula injection**: cells starting with `= + - @` get a leading `'`.
-- **Constant-time**: password and challenge nonce compared with `hmac.compare_digest`.
+- **Constant-time**: challenge nonce compared with `hmac.compare_digest`; passwords
+  verified via werkzeug pbkdf2 (`check_password_hash`).
 - **Audit**: every attendance row logs IP.
 
 ## Conventions & hard constraints

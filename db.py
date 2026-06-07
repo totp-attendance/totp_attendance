@@ -43,6 +43,15 @@ def init_db():
     with get_conn() as conn:
         conn.executescript(
             """
+            -- 교사 계정 (관리자 / 일반)
+            CREATE TABLE IF NOT EXISTS teachers (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                username    TEXT    NOT NULL UNIQUE,
+                pw_hash     TEXT    NOT NULL,
+                is_admin    INTEGER NOT NULL DEFAULT 0,
+                created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+            );
+
             CREATE TABLE IF NOT EXISTS sessions (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 name        TEXT    NOT NULL,
@@ -54,7 +63,8 @@ def init_db():
                 geo_lat     REAL,
                 geo_lon     REAL,
                 geo_radius  INTEGER,
-                require_qr  INTEGER NOT NULL DEFAULT 0
+                require_qr  INTEGER NOT NULL DEFAULT 0,
+                owner_id    INTEGER
             );
 
             -- 학생별 개인 TOTP 등록 (전역, 세션과 무관)
@@ -93,6 +103,7 @@ def _migrate(conn):
             "geo_lon": "ALTER TABLE sessions ADD COLUMN geo_lon REAL",
             "geo_radius": "ALTER TABLE sessions ADD COLUMN geo_radius INTEGER",
             "require_qr": "ALTER TABLE sessions ADD COLUMN require_qr INTEGER NOT NULL DEFAULT 0",
+            "owner_id": "ALTER TABLE sessions ADD COLUMN owner_id INTEGER",
         },
         "attendance": {
             "ip": "ALTER TABLE attendance ADD COLUMN ip TEXT",
@@ -107,18 +118,98 @@ def _migrate(conn):
                 conn.execute(ddl)
 
 
+# --- 교사 계정 --------------------------------------------------------------
+def count_teachers():
+    with get_conn() as conn:
+        return conn.execute("SELECT count(*) FROM teachers").fetchone()[0]
+
+
+def create_teacher(username, pw_hash, is_admin=0):
+    """교사 계정 생성. username 중복이면 IntegrityError → None 반환."""
+    with get_conn() as conn:
+        try:
+            cur = conn.execute(
+                "INSERT INTO teachers (username, pw_hash, is_admin) VALUES (?, ?, ?)",
+                (username.strip(), pw_hash, 1 if is_admin else 0),
+            )
+            return cur.lastrowid
+        except sqlcipher.IntegrityError:
+            return None
+
+
+def get_teacher_by_username(username):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM teachers WHERE username = ?", (username.strip(),)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_teacher(teacher_id):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM teachers WHERE id = ?", (teacher_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_teachers():
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM teachers ORDER BY is_admin DESC, username"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def set_teacher_password(teacher_id, pw_hash):
+    with get_conn() as conn:
+        conn.execute("UPDATE teachers SET pw_hash = ? WHERE id = ?",
+                     (pw_hash, teacher_id))
+
+
+def delete_teacher(teacher_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM teachers WHERE id = ?", (teacher_id,))
+
+
+def count_admins():
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT count(*) FROM teachers WHERE is_admin = 1"
+        ).fetchone()[0]
+
+
 # --- 세션 ------------------------------------------------------------------
 def create_session(name, secret, interval=30, mode="session",
-                   geo_lat=None, geo_lon=None, geo_radius=None, require_qr=0):
+                   geo_lat=None, geo_lon=None, geo_radius=None, require_qr=0,
+                   owner_id=None):
     with get_conn() as conn:
         cur = conn.execute(
             "INSERT INTO sessions "
-            "(name, secret, interval, mode, geo_lat, geo_lon, geo_radius, require_qr) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(name, secret, interval, mode, geo_lat, geo_lon, geo_radius, "
+            "require_qr, owner_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (name, secret, interval, mode, geo_lat, geo_lon, geo_radius,
-             1 if require_qr else 0),
+             1 if require_qr else 0, owner_id),
         )
         return cur.lastrowid
+
+
+def backfill_session_owner(owner_id):
+    """소유자 없는(구버전) 세션을 지정 교사 소유로. 업그레이드 1회용."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE sessions SET owner_id = ? WHERE owner_id IS NULL", (owner_id,)
+        )
+
+
+def reassign_sessions(from_owner, to_owner):
+    """교사 삭제 시 그 세션을 다른 교사에게 인계 (출석 데이터 보존)."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE sessions SET owner_id = ? WHERE owner_id = ?",
+            (to_owner, from_owner),
+        )
 
 
 def get_session(session_id):
@@ -129,9 +220,16 @@ def get_session(session_id):
         return dict(row) if row else None
 
 
-def list_sessions():
+def list_sessions(owner_id=None):
+    """owner_id 주면 해당 교사 세션만, 없으면 전체(관리자용)."""
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM sessions ORDER BY id DESC").fetchall()
+        if owner_id is None:
+            rows = conn.execute(
+                "SELECT * FROM sessions ORDER BY id DESC").fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM sessions WHERE owner_id = ? ORDER BY id DESC",
+                (owner_id,)).fetchall()
         return [dict(r) for r in rows]
 
 

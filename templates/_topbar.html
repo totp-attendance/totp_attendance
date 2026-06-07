@@ -5,6 +5,8 @@
   <nav>
     <a href="{{ url_for('sessions.index') }}">세션</a>
     <a href="{{ url_for('students.index') }}">학생 관리</a>
+    {% if session.is_admin %}<a href="{{ url_for('admin.index') }}">계정 관리</a>{% endif %}
+    {% if session.username %}<span class="muted small" style="padding:7px 4px">{{ session.username }}{% if session.is_admin %} · 관리자{% endif %}</span>{% endif %}
     <a href="{{ url_for('auth.logout') }}">로그아웃</a>
   </nav>
 </header>
