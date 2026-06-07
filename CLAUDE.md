@@ -54,10 +54,11 @@ views/admin.py    Teacher account management (admin-only): /admin list, /admin/c
                   /admin/<id>/reset password, /admin/enroll-code (set/clear the
                   student self-registration code in settings).
 views/sessions.py Owner-scoped session CRUD (_owned_session 404-guards non-owners,
-                  admin sees all), /teacher, /api/code (count),
-                  /qrc (rotating challenge QR, login-required), /roster, /toggle,
-                  /export CSV. _csv_safe() neutralizes formula injection.
-                  require_qr is always 1 (on-site QR mandatory; no opt-out).
+                  admin sees all). /sessions (list; NOT "/"), /create, /teacher
+                  (QR screen), /api/code (count), /qrc (rotating challenge QR,
+                  login-required), /roster, /toggle, /session/<id>/delete (removes
+                  session + its attendance), /export CSV. _csv_safe() neutralizes
+                  formula injection. require_qr is always 1 (on-site QR mandatory).
 views/students.py Student personal-TOTP enrollment, device-registration QR
                   (/student/<id>/qr.png → /setup#... with secret in fragment),
                   public /setup, delete. Self-registration: public /register
@@ -65,9 +66,10 @@ views/students.py Student personal-TOTP enrollment, device-registration QR
                   (No Google Authenticator / otpauth — browser-authenticator only.)
 views/checkin.py  /check/<id> — _validate() runs the ordered gate checks, then
                   records attendance. AJAX branch returns JSON.
-views/timetable.py Per-teacher timetable: /timetable grid, add/edit/delete course,
-                  /timetable/<id>/start (creates or reuses today's session for the
-                  course → teacher screen). Owner-scoped.
+views/timetable.py Per-teacher timetable — this is the HOME page ("/" and
+                  "/timetable"): weekly grid, add/edit/delete course, today's
+                  classes, /timetable/<id>/start (creates or reuses today's session
+                  for the course → QR screen). Owner-scoped.
 static/attendance.js  Browser-side TOTP (HMAC-SHA1, pyotp-compatible) +
                   localStorage device identity. Makes the phone browser the
                   authenticator (no app install needed). Uses WebCrypto when
