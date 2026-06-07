@@ -131,10 +131,6 @@ def verify_challenge(session_id, token):
     return hmac.compare_digest(nonce, _qr_nonce(session_id, epoch))
 
 
-# --- otpauth (개인 TOTP 등록용) ---------------------------------------------
-TOTP_ISSUER = os.environ.get("ATTENDANCE_ISSUER", "출석")
-
-
 # --- 실행 설정 --------------------------------------------------------------
 DEBUG = os.environ.get("ATTENDANCE_DEBUG") == "1"
 PORT = int(os.environ.get("ATTENDANCE_PORT", "5000"))

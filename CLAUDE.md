@@ -43,7 +43,8 @@ views/sessions.py Session CRUD, /teacher, /api/code (count), /qr (static),
                   /export CSV. _csv_safe() neutralizes formula injection.
 views/students.py Student personal-TOTP enrollment, device-registration QR
                   (/student/<id>/qr.png → /setup#... with secret in fragment),
-                  otpauth QR fallback, public /setup, delete.
+                  public /setup, delete. (No Google Authenticator / otpauth —
+                  browser-authenticator only.)
 views/checkin.py  /check/<id> — _validate() runs the ordered gate checks, then
                   records attendance. AJAX branch returns JSON.
 static/attendance.js  Browser-side TOTP (HMAC-SHA1, pyotp-compatible) +
@@ -73,8 +74,8 @@ test_app.py       pytest suite (27 tests), temp encrypted DB per test.
 1. Teacher: `/login` → `/students` enroll (server generates random base32 secret)
    → show registration QR.
 2. Student (once per device): scan registration QR → `/setup#sid=&name=&s=secret`
-   → `attendance.js` saves identity to `localStorage`. No app install. (Google
-   Authenticator works too via the otpauth QR / manual key fallback.)
+   → `attendance.js` saves identity to `localStorage`. No app install — the browser
+   IS the authenticator (no Google Authenticator / otpauth path).
 3. Teacher: `/create` (name + optional require_qr) → `/teacher/<id>`
    shows the rotating QR (refreshes every QR_ROTATE_SEC, default 10s) with a
    countdown bar, plus live attendance count.
@@ -130,7 +131,6 @@ no auto-reload) before any live/E2E check.
 | `ATTENDANCE_SECRET_KEY` | Flask session signing | random per process (logins drop on restart) |
 | `ATTENDANCE_TEACHER_PASSWORD` | teacher login | `admin` + warning |
 | `ATTENDANCE_ALLOWED_SUBNETS` | comma IP-prefix allowlist (e.g. `192.168.0.,10.0.`) | no restriction |
-| `ATTENDANCE_ISSUER` | otpauth issuer label | `출석` |
 | `ATTENDANCE_QR_ROTATE_SEC` | rotating-QR challenge period | `10` |
 | `ATTENDANCE_RATE_MAX_FAILS` / `_WINDOW_SEC` | rate limiter | `5` / `60` |
 | `ATTENDANCE_SSL` | `1` → adhoc HTTPS | off |

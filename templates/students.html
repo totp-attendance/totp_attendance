@@ -11,8 +11,8 @@
 {% block body %}
 <h1>학생 관리 (개인 TOTP 등록)</h1>
 <p><a href="{{ url_for('sessions.index') }}">← 세션 목록</a></p>
-<p style="color:#555">학생 등록 → 등록 QR을 학생이 <b>Google Authenticator</b> 등에 스캔 →
-이후 개인 TOTP 세션에서 본인 앱 코드로 출석.</p>
+<p style="color:#555">학생 등록 → 학생이 <b>등록 QR을 폰 카메라로 스캔</b> → 브라우저(이 기기)가
+인증기로 등록(앱 설치 불필요) → 이후 수업 QR 스캔만으로 자동 출석.</p>
 <form method="post" action="{{ url_for('students.enroll') }}">
  <div class="row">
   <input name="student_id" placeholder="학번" required>

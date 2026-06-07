@@ -5,7 +5,7 @@ from functools import wraps
 import qrcode
 from flask import request, redirect, url_for, session, Response
 
-# 개인 TOTP 표준 주기 (Google Authenticator 등 인증앱 기본값)
+# 개인 TOTP 표준 주기 (브라우저 인증기 = attendance.js 와 동일, 30초)
 PERSONAL_INTERVAL = 30
 
 

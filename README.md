@@ -1,6 +1,6 @@
 # TOTP 출석 프로그램
 
-학생별 개인 TOTP(Google Authenticator 등)로 출석 체크. 대리출석 차단 + 현장확인(회전 QR) + DB 암호화.
+학생별 개인 TOTP(폰 브라우저가 인증기, 앱 설치 불필요)로 출석 체크. 대리출석 차단 + 현장확인(회전 QR) + DB 암호화.
 
 ## 구성
 - `app.py` — Flask 웹 서버 (교사화면 + 학생출석 + 학생관리 + 출석부/CSV)
@@ -20,14 +20,14 @@ python app.py            # 개발 서버
 ```
 서버: http://localhost:5000 → `/login` 교사 비밀번호 입력
 
-## 인증 방식: 학생별 개인 TOTP
-학생이 본인 인증앱(Google Authenticator 등) 코드로 출석. **대리출석 차단** —
-본인 secret 없으면 코드 생성 불가.
+## 인증 방식: 학생별 개인 TOTP (브라우저 인증기)
+학생 폰 브라우저 자체가 인증기. 본인 secret 으로 코드 생성. **대리출석 차단** —
+본인 secret 없으면 코드 생성 불가. **별도 앱(Google Authenticator 등) 설치 불필요.**
 
 ### 사용 순서
 1. 교사: `/students` → 학번·이름 등록 → 등록 QR 표시
 2. 학생: 등록 QR을 폰 카메라로 스캔 → 브라우저(`/setup`)가 secret을 **이 기기에 저장**
-   (앱 설치 불필요. Google Authenticator 쓰려면 enroll 페이지의 otpauth QR/수동키 사용)
+   (앱 설치 불필요. 브라우저가 인증기 역할)
 3. 교사: 세션 생성 (이름만, 필요 시 현장확인 체크)
 4. 학생: 수업 QR 스캔 → **학번·코드 자동 입력·자동 제출** (브라우저가 TOTP 계산)
    미등록 기기는 학번 + 코드 수동 입력 폴백
@@ -71,7 +71,6 @@ epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 →
 | `ATTENDANCE_SECRET_KEY` | Flask 세션 쿠키 서명 | 임시 랜덤(재시작 시 로그인 풀림) |
 | `ATTENDANCE_TEACHER_PASSWORD` | 교사 로그인 비번 | `admin` + 경고 |
 | `ATTENDANCE_ALLOWED_SUBNETS` | 출석 허용 IP 대역(쉼표, 예: `192.168.0.,10.0.`) | 제한 없음 |
-| `ATTENDANCE_ISSUER` | 인증앱 표시 발급자명 | `출석` |
 | `ATTENDANCE_QR_ROTATE_SEC` | 회전 QR 챌린지 갱신 주기(초) | `10` |
 | `ATTENDANCE_RATE_MAX_FAILS` | 레이트리밋 실패 한도 | `5` |
 | `ATTENDANCE_RATE_WINDOW_SEC` | 레이트리밋 윈도우(초) | `60` |

@@ -7,8 +7,7 @@ from flask import (
 )
 
 import db
-import config
-from helpers import require_teacher, png_response, PERSONAL_INTERVAL
+from helpers import require_teacher, png_response
 
 bp = Blueprint("students", __name__)
 
@@ -44,7 +43,7 @@ def qr(student_id):
 @require_teacher
 def qr_png(student_id):
     """기기 등록 QR — 학생 폰 카메라로 스캔 시 /setup 열려 브라우저에 secret 저장.
-    (Google Authenticator 쓰려면 enroll 페이지의 수동키 입력)"""
+    (브라우저 자체가 인증기. 앱 설치 불필요)"""
     st = db.get_student(student_id)
     if not st:
         abort(404)
@@ -54,19 +53,6 @@ def qr_png(student_id):
     frag = urlencode({"sid": st["student_id"], "name": st["name"],
                       "s": st["secret"]})
     return png_response(f"{setup_url}#{frag}")
-
-
-@bp.route("/student/<student_id>/otpauth.png")
-@require_teacher
-def otpauth_png(student_id):
-    """Google Authenticator 용 otpauth QR (앱 사용자 폴백)."""
-    st = db.get_student(student_id)
-    if not st:
-        abort(404)
-    uri = pyotp.TOTP(st["secret"], interval=PERSONAL_INTERVAL).provisioning_uri(
-        name=st["student_id"], issuer_name=config.TOTP_ISSUER
-    )
-    return png_response(uri)
 
 
 @bp.route("/setup")

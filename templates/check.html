@@ -11,7 +11,7 @@
 {% endblock %}
 {% block body %}
 <h2>{{ s.name }} 출석</h2>
-<p id="hint" style="color:#555">본인 인증앱(Google Authenticator 등) 코드 입력</p>
+<p id="hint" style="color:#555">등록된 기기면 자동 출석됩니다. (미등록 기기는 학번·코드 직접 입력)</p>
 {% if s.require_qr and not challenge %}
 <div class="msg err">교실 화면의 회전 QR을 카메라로 스캔해 들어와야 출석할 수 있습니다.</div>
 {% endif %}
@@ -21,7 +21,7 @@
   <input type="hidden" name="c" value="{{ challenge }}">
   <label>학번</label>
   <input name="student_id" required autocomplete="off" value="{{ sid_val }}">
-  <label>본인 인증앱 코드 (6자리)</label>
+  <label>출석 코드 (6자리)</label>
   <input name="code" class="code-in" inputmode="numeric" pattern="[0-9]*" maxlength="6" required>
   <button id="btn">출석하기</button>
   <p class="muted" id="geostat" style="color:#888;font-size:.85rem"></p>

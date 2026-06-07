@@ -10,11 +10,5 @@
 이후 수업 QR만 스캔하면 자동 출석</p>
 <img src="{{ url_for('students.qr_png', student_id=st.student_id) }}" width="220" height="220">
 <p class="muted">{{ '신규 등록됨' if is_new else '이미 등록된 학생 (기존 키 유지)' }}</p>
-<details class="muted" style="margin-top:12px">
-  <summary>Google Authenticator 앱으로 등록 (선택)</summary>
-  <p>otpauth QR:</p>
-  <img src="{{ url_for('students.otpauth_png', student_id=st.student_id) }}" width="160" height="160">
-  <p>또는 수동 입력 키: <code>{{ st.secret }}</code></p>
-</details>
 <p><a href="{{ url_for('students.index') }}">← 학생 목록</a></p>
 {% endblock %}
