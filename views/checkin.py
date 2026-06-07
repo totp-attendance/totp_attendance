@@ -1,4 +1,4 @@
-"""학생 출석 체크 — 개인 TOTP + 회전 QR 챌린지 + 레이트리밋."""
+"""학생 출석 체크 — 개인 TOTP + QR 챌린지(현장) + 레이트리밋."""
 import pyotp
 from flask import Blueprint, request, render_template, jsonify, abort
 
@@ -22,7 +22,7 @@ def _validate(session_id, s, sid_val, code, ip, challenge):
         return "시도가 너무 많습니다. 잠시 후 다시 시도하세요.", "err", None
     if not s["open"]:
         return "세션이 닫혔습니다.", "err", None
-    # 현장 확인: 교실 화면의 회전 QR 을 스캔해 얻은 유효 챌린지 필요 (원격 차단)
+    # 현장 확인: 교실 화면의 QR 을 스캔해 얻은 유효 챌린지 필요 (원격 차단)
     if s["require_qr"] and not config.verify_challenge(session_id, challenge):
         return "교실 화면의 QR 을 스캔해 출석하세요. (QR 만료 시 다시 스캔)", "err", None
     if not sid_val or not code:

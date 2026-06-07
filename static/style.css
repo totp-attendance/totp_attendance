@@ -132,7 +132,7 @@ code,.kbd{font-family:var(--mono);background:#f1f3f8;padding:2px 7px;border-radi
 .stat .num{font-size:3.2rem;font-weight:800;color:var(--primary);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .stat .unit{font-size:1.1rem;color:var(--muted)}
 
-/* QR / 회전 챌린지 */
+/* QR / 챌린지 */
 .qrbox{display:inline-block;padding:16px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
 .qrbox img{display:block;border-radius:6px}
 .bar{height:8px;background:#e7e9f0;border-radius:999px;overflow:hidden}

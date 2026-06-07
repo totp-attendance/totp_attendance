@@ -1,12 +1,12 @@
 # TOTP 출석 프로그램
 
-학생별 개인 TOTP(폰 브라우저가 인증기, 앱 설치 불필요)로 출석 체크. 대리출석 차단 + 현장확인(회전 QR) + DB 암호화.
+학생별 개인 TOTP(폰 브라우저가 인증기, 앱 설치 불필요)로 출석 체크. 대리출석 차단 + 현장확인(QR) + DB 암호화.
 
 ## 구성
 - `app.py` — Flask 웹 서버 (앱 팩토리 + 첫 관리자 부트스트랩 + 블루프린트 등록)
 - `db.py` — 저장소 (이중 백엔드: `DATABASE_URL` 있으면 Postgres/psycopg, 없으면 SQLCipher)
 - `api/index.py` · `vercel.json` — Vercel 서버리스 배포 진입점/설정
-- `config.py` — 환경변수 설정 + 보안 헬퍼 (비번해시/레이트리밋/IP제한/회전QR 챌린지)
+- `config.py` — 환경변수 설정 + 보안 헬퍼 (비번해시/레이트리밋/IP제한/QR 챌린지)
 - `views/admin.py` — 교사 계정 관리 (관리자 전용)
 - `serve.py` — 운영용 WSGI 실행 (waitress)
 - `attendance.db` — 실행 시 자동 생성 (암호화됨)
@@ -44,7 +44,7 @@ python app.py            # 개발 서버
 1. 교사: `/students` → 학번·이름 등록 → 등록 QR 표시
 2. 학생: 등록 QR을 폰 카메라로 스캔 → 브라우저(`/setup`)가 secret을 **이 기기에 저장**
    (앱 설치 불필요. 브라우저가 인증기 역할)
-3. 교사: 세션 생성 (이름만, 필요 시 현장확인 체크)
+3. 교사: 세션 생성 (이름만 — 현장확인 QR 자동 적용)
 4. 학생: 수업 QR 스캔 → **학번·코드 자동 입력·자동 제출** (브라우저가 TOTP 계산)
    미등록 기기는 학번 + 코드 수동 입력 폴백
 
@@ -58,21 +58,21 @@ python app.py            # 개발 서버
 - 보안 메모: secret이 기기 브라우저에 저장됨(인증앱과 동급 신뢰). 공용 PC 사용 금지,
   기기 분실 시 교사가 해당 학생 재등록(새 secret 발급).
 
-## 현장 확인 (회전 QR, 선택) — 원격 출석 차단
-세션 생성 시 "현장 확인" 체크 시:
-- 교사 화면에 **회전 QR** 표시 (기본 10초마다 갱신, HMAC 챌린지 내장 → 위조 불가).
+## 현장 확인 (QR, 항상 적용) — 원격 출석 차단
+모든 세션에 자동 적용 (옵션 아님):
+- 교사 화면에 **QR** 표시 (기본 10초마다 갱신, HMAC 챌린지 내장 → 위조 불가).
 - 학생은 **지금 화면의 QR을 카메라로 스캔**해야 출석 페이지 진입 (챌린지가 URL `?c=`로 전달).
 - 만료/위조 챌린지는 거부 → 원격 학생은 화면을 못 봐 유효 챌린지를 얻지 못함.
 
 이중 방어:
-- **현장**: 회전 QR 챌린지 (교실 화면에만, 금방 만료) → 원격 차단
+- **현장**: QR 챌린지 (교실 화면에만, 금방 만료) → 원격 차단
 - **본인**: 개인 TOTP → 대리 차단
 
 암호 설계: 챌린지 = `세션ID.epoch.HMAC(SECRET_KEY, "세션ID:epoch")`. 서버가 재계산해 현재/직전
-epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 → 외부에서 챌린지 못 빼감.
+epoch만 허용. QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 → 외부에서 챌린지 못 빼감.
 
-**잔여 한계**: 교실 안 공범이 QR을 실시간 중계하면 원격 서명 가능(릴레이). 완전 차단은
-거리한정(distance bounding) 전용 하드웨어 영역. 회전 주기를 짧게 해 릴레이 난이도를 높임.
+**잔여 한계**: 교실 안 공범이 QR을 실시간 중계하면 원격 가능(릴레이). 완전 차단은
+거리한정(distance bounding) 전용 하드웨어 영역. 갱신 주기를 짧게 해 릴레이 난이도를 높임.
 조정: `ATTENDANCE_QR_ROTATE_SEC` (기본 10).
 
 ## HTTPS (운영)
@@ -93,7 +93,7 @@ epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 →
 | `ATTENDANCE_TEACHER_PASSWORD` | (하위호환) 관리자 비번 미설정 시 대체 | — |
 | `ATTENDANCE_ALLOWED_SUBNETS` | 출석 허용 IP 대역(쉼표, 예: `192.168.0.,10.0.`) | 제한 없음 |
 | `ATTENDANCE_TRUST_PROXY` | `1` 이면 `X-Forwarded-For` 신뢰(신뢰 리버스프록시 뒤에서만) | off (위조 방지, remote_addr 만) |
-| `ATTENDANCE_QR_ROTATE_SEC` | 회전 QR 챌린지 갱신 주기(초) | `10` |
+| `ATTENDANCE_QR_ROTATE_SEC` | QR 챌린지 갱신 주기(초) | `10` |
 | `ATTENDANCE_RATE_MAX_FAILS` | 레이트리밋 실패 한도 | `5` |
 | `ATTENDANCE_RATE_WINDOW_SEC` | 레이트리밋 윈도우(초) | `60` |
 | `ATTENDANCE_SSL` | `1` 이면 adhoc HTTPS | off |
@@ -113,7 +113,7 @@ epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 →
 - **네트워크 제한**: `ATTENDANCE_ALLOWED_SUBNETS` IP 대역. `X-Forwarded-For` 는
   **기본 무시**(클라 위조 가능) — 신뢰 리버스프록시 뒤에서 `ATTENDANCE_TRUST_PROXY=1`
   일 때만 사용. 안 그러면 `remote_addr` 만 신뢰 → IP제한·레이트리밋·감사 위조 방지.
-- **상수시간 비교**: 회전 QR 챌린지 nonce 는 `hmac.compare_digest`. 비번은 pbkdf2 해시 검증.
+- **상수시간 비교**: QR 챌린지 nonce 는 `hmac.compare_digest`. 비번은 pbkdf2 해시 검증.
 - **CSRF 방어**: 세션쿠키 `SameSite=Strict` + `HttpOnly` (HTTPS 면 `Secure`) →
   악성사이트가 교사 세션으로 세션생성·학생삭제 강제 불가.
 - **출석여부 오라클 차단**: 중복출석 검사를 TOTP 검증 *뒤*에 수행 →

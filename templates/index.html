@@ -4,7 +4,7 @@
 {% include "_topbar.html" %}
 <main class="container">
   <h1>출석 세션</h1>
-  <p class="muted" style="margin-top:-4px;margin-bottom:20px">수업을 만들고 회전 QR로 현장 출석을 받으세요.</p>
+  <p class="muted" style="margin-top:-4px;margin-bottom:20px">수업을 만들고 QR로 현장 출석을 받으세요.</p>
 
   <div class="card">
     <p class="card-title">새 세션 만들기</p>
@@ -13,10 +13,10 @@
         <label for="sname">수업 이름</label>
         <input id="sname" class="input" name="name" placeholder="예: 6/6 1교시 자료구조" required autofocus>
       </div>
-      <label class="checkbox">
-        <input type="checkbox" name="require_qr" value="1" checked>
-        <span><b>현장 확인 (권장)</b><br><span class="muted small">교실 화면의 회전 QR을 스캔해야 출석 — 원격 출석 차단</span></span>
-      </label>
+      <div class="alert info">
+        <span>📍</span>
+        <span><b>현장 확인 항상 적용</b> — 학생은 교실 화면의 QR을 스캔해야 출석됩니다 (원격 출석 차단).</span>
+      </div>
       <div class="row">
         <button class="btn primary lg">세션 생성</button>
       </div>
@@ -36,7 +36,7 @@
           <td class="num small">{{ s.created_at }}</td>
           <td>
             {% if s.open %}<span class="badge on">● 열림</span>{% else %}<span class="badge off">닫힘</span>{% endif %}
-            {% if s.require_qr %}<span class="badge qr">회전 QR</span>{% endif %}
+            {% if s.require_qr %}<span class="badge qr">QR 현장확인</span>{% endif %}
           </td>
           <td class="row" style="gap:6px">
             <a class="btn ghost" style="padding:6px 12px" href="{{ url_for('sessions.teacher', session_id=s.id) }}">교사 화면</a>

@@ -49,10 +49,9 @@ def create():
     name = request.form.get("name", "").strip()
     if not name:
         abort(400, "이름 필요")
-    require_qr = 1 if request.form.get("require_qr") else 0
-    # 개인 TOTP 방식만 사용. secret 컬럼은 NOT NULL 충족용(미사용).
+    # 현장 확인(QR 챌린지)은 항상 적용 — 원격 출석 차단 (옵션 아님).
     sid = db.create_session(name, pyotp.random_base32(), 30, "personal",
-                            require_qr=require_qr, owner_id=current_teacher_id())
+                            require_qr=1, owner_id=current_teacher_id())
     return redirect(url_for("sessions.teacher", session_id=sid))
 
 
@@ -68,7 +67,7 @@ def teacher(session_id):
 @bp.route("/api/code/<int:session_id>")
 @require_teacher
 def api_code(session_id):
-    # 개인 TOTP 방식: 회전 코드 없음. 실시간 출석수만 제공.
+    # 개인 TOTP 방식: 코드 없음. 실시간 출석수만 제공.
     _owned_session(session_id)
     return jsonify(count=len(db.list_attendance(session_id)))
 
@@ -86,7 +85,7 @@ def qr(session_id):
 @bp.route("/qrc/<int:session_id>")
 @require_teacher
 def qr_challenge(session_id):
-    """회전 QR — 현재 챌린지를 담은 출석 URL의 QR PNG.
+    """QR — 현재 챌린지를 담은 출석 URL의 QR PNG.
     교사 화면(인증됨)에서만 가져올 수 있어 외부서 챌린지 못 빼감."""
     _owned_session(session_id)
     token = config.challenge_token(session_id)

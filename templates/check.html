@@ -7,7 +7,7 @@
     <p id="hint" class="muted small">등록된 기기면 자동 출석됩니다. (미등록 기기는 학번·코드 직접 입력)</p>
 
     {% if s.require_qr and not challenge %}
-    <div class="alert err" style="margin:14px 0"><span>!</span><span>교실 화면의 회전 QR을 카메라로 스캔해 들어와야 출석할 수 있습니다.</span></div>
+    <div class="alert err" style="margin:14px 0"><span>!</span><span>교실 화면의 QR을 카메라로 스캔해 들어와야 출석할 수 있습니다.</span></div>
     {% endif %}
 
     <div id="result">{% if msg %}<div class="alert {{ cls }}">{{ msg }}</div>{% endif %}</div>

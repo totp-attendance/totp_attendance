@@ -100,7 +100,8 @@ def test_xff_spoof_ignored_by_default(teacher):
     config.ALLOWED_SUBNETS = ["10.0."]
     pub = appmod.app.test_client()
     r = pub.post(f"/check/{sid}",
-                 data={"student_id": "s1", "code": code_of(secret)},
+                 data={"student_id": "s1", "code": code_of(secret),
+                       "c": config.challenge_token(sid)},
                  headers={"X-Forwarded-For": "10.0.0.5"})  # 위조 시도
     assert "허용되지 않은 네트워크" in r.data.decode()
 
@@ -113,7 +114,8 @@ def test_xff_trusted_when_proxy_enabled(teacher):
     config.TRUST_PROXY = True
     pub = appmod.app.test_client()
     r = pub.post(f"/check/{sid}",
-                 data={"student_id": "s1", "code": code_of(secret)},
+                 data={"student_id": "s1", "code": code_of(secret),
+                       "c": config.challenge_token(sid)},
                  headers={"X-Forwarded-For": "10.0.0.5"})
     assert "출석 완료" in r.data.decode()
 
@@ -123,7 +125,7 @@ def test_checkin_success(teacher):
     secret = enroll(teacher, "s1", "학생1")
     sid = make_session(teacher)
     pub = appmod.app.test_client()
-    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret)})
+    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret), "c": config.challenge_token(sid)})
     body = r.data.decode()
     assert "출석 완료" in body and "학생1" in body  # 이름 자동
     rows = db.list_attendance(sid)
@@ -134,7 +136,7 @@ def test_duplicate_blocked(teacher):
     secret = enroll(teacher, "s1", "학생1")
     sid = make_session(teacher)
     pub = appmod.app.test_client()
-    d = {"student_id": "s1", "code": code_of(secret)}
+    d = {"student_id": "s1", "code": code_of(secret), "c": config.challenge_token(sid)}
     pub.post(f"/check/{sid}", data=d)
     r = pub.post(f"/check/{sid}", data=d)
     assert "이미 출석" in r.data.decode()
@@ -144,7 +146,7 @@ def test_wrong_code_rejected(teacher):
     enroll(teacher, "s1", "학생1")
     sid = make_session(teacher)
     pub = appmod.app.test_client()
-    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": "000000"})
+    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": "000000", "c": config.challenge_token(sid)})
     assert "틀렸거나" in r.data.decode()
 
 
@@ -153,9 +155,9 @@ def test_attendance_oracle_blocked(teacher):
     secret = enroll(teacher, "s1", "학생1")
     sid = make_session(teacher)
     pub = appmod.app.test_client()
-    pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret)})
+    pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret), "c": config.challenge_token(sid)})
     # 이미 출석한 학생을 '틀린 코드'로 찔러봄 → '이미 출석' 노출 금지, 코드오류 반환
-    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": "000000"})
+    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": "000000", "c": config.challenge_token(sid)})
     body = r.data.decode()
     assert "이미 출석" not in body and "틀렸거나" in body
 
@@ -163,7 +165,7 @@ def test_attendance_oracle_blocked(teacher):
 def test_unenrolled_rejected(teacher):
     sid = make_session(teacher)
     pub = appmod.app.test_client()
-    r = pub.post(f"/check/{sid}", data={"student_id": "ghost", "code": "123456"})
+    r = pub.post(f"/check/{sid}", data={"student_id": "ghost", "code": "123456", "c": config.challenge_token(sid)})
     assert "등록되지 않은" in r.data.decode()
 
 
@@ -172,7 +174,7 @@ def test_closed_session_rejected(teacher):
     sid = make_session(teacher)
     teacher.post(f"/toggle/{sid}")
     pub = appmod.app.test_client()
-    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret)})
+    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret), "c": config.challenge_token(sid)})
     assert "닫혔" in r.data.decode()
 
 
@@ -203,7 +205,8 @@ def test_ajax_checkin_returns_json(teacher):
     sid = make_session(teacher)
     pub = appmod.app.test_client()
     r = pub.post(f"/check/{sid}",
-                 data={"student_id": "s1", "code": code_of(secret)},
+                 data={"student_id": "s1", "code": code_of(secret),
+                       "c": config.challenge_token(sid)},
                  headers={"X-Requested-With": "fetch"})
     assert r.is_json
     body = r.get_json()
@@ -215,18 +218,19 @@ def test_ajax_wrong_code_json_not_ok(teacher):
     sid = make_session(teacher)
     pub = appmod.app.test_client()
     r = pub.post(f"/check/{sid}",
-                 data={"student_id": "s1", "code": "000000"},
+                 data={"student_id": "s1", "code": "000000",
+                       "c": config.challenge_token(sid)},
                  headers={"X-Requested-With": "fetch"})
     assert r.is_json and r.get_json()["ok"] is False
 
 
-# --- 회전 QR 챌린지 (현장 확인) ---------------------------------------------
+# --- QR 챌린지 (현장 확인) --------------------------------------------------
 def test_qr_required_blocks_without_challenge(teacher):
     secret = enroll(teacher, "s1", "학생1")
     sid = make_session(teacher, require_qr="1")
     pub = appmod.app.test_client()
     # 챌린지(c) 없이 제출 → 차단
-    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret)})
+    r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret), "c": config.challenge_token(sid)})
     assert "QR" in r.data.decode()
 
 
@@ -275,7 +279,7 @@ def test_rate_limit(teacher):
     pub = appmod.app.test_client()
     blocked = False
     for i in range(config.RATE_MAX_FAILS + 2):
-        r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": "000000"})
+        r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": "000000", "c": config.challenge_token(sid)})
         if "너무 많습니다" in r.data.decode():
             blocked = True
             break
@@ -287,7 +291,7 @@ def test_csv_export_bom(teacher):
     secret = enroll(teacher, "s1", "홍길동")
     sid = make_session(teacher)
     pub = appmod.app.test_client()
-    pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret)})
+    pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret), "c": config.challenge_token(sid)})
     r = teacher.get(f"/export/{sid}.csv")
     assert r.data.startswith(b"\xef\xbb\xbf")  # 엑셀 BOM
     assert "홍길동" in r.data.decode("utf-8-sig")
@@ -298,7 +302,7 @@ def test_csv_formula_injection_neutralized(teacher):
     secret = enroll(teacher, "s1", "=1+2")
     sid = make_session(teacher)
     pub = appmod.app.test_client()
-    pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret)})
+    pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret), "c": config.challenge_token(sid)})
     r = teacher.get(f"/export/{sid}.csv")
     text = r.data.decode("utf-8-sig")
     assert "'=1+2" in text  # 무력화됨

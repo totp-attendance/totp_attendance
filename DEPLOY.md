@@ -37,7 +37,7 @@ python -c "import secrets; print(secrets.token_hex(32))"   # ATTENDANCE_FIELD_KE
 | `ATTENDANCE_ADMIN_USER` | 첫 관리자 아이디 (예: admin) | 권장 |
 | `ATTENDANCE_ADMIN_PASSWORD` | 첫 관리자 비번 (강하게) | ✅ |
 | `ATTENDANCE_HTTPS` | `1` (Secure 쿠키) | 권장 |
-| `ATTENDANCE_QR_ROTATE_SEC` | 회전 QR 주기, 기본 10 | 선택 |
+| `ATTENDANCE_QR_ROTATE_SEC` | QR 갱신 주기, 기본 10 | 선택 |
 | `ATTENDANCE_TRUST_PROXY` | IP 허용목록 쓸 때만 `1` | 선택 |
 
 - ⚠️ `ATTENDANCE_FIELD_KEY` 분실 = 기존 학생 시드 복호 불가 → 재등록 필요. 안전 보관.
@@ -51,15 +51,14 @@ python -c "import secrets; print(secrets.token_hex(32))"   # ATTENDANCE_FIELD_KE
 ## 6. 첫 로그인 후
 1. `https://<앱>.vercel.app/login` → `ATTENDANCE_ADMIN_USER`/`PASSWORD` 로 로그인.
 2. `/admin` 에서 실제 교사 계정 생성, 필요 시 관리자 비번 교체.
-3. 세션 생성 시 **현장 확인(회전 QR) 항상 ON** 권장 (공개 인터넷이라 회전 QR 이
-   유일한 현장 방어 — 끄면 어디서나 출석 가능).
+3. 현장 확인(QR)은 **모든 세션에 자동 적용**됨 (공개 인터넷이라 QR 이 유일한 현장 방어).
 
 ## 운영 한계 (서버리스 특성)
 - **레이트리밋은 인메모리 → 인스턴스별/콜드스타트마다 초기화.** 강한 무차별 방어가
   필요하면 외부 저장소(예: Upstash Redis) 연동 필요.
 - 콜드 스타트 시 첫 요청 지연 + 매 요청 DB 연결(Neon pooler 사용으로 완화).
 - 정적 파일은 Flask 가 서빙(소규모 OK). 트래픽 크면 CDN/정적 호스팅 분리 고려.
-- 회전 QR 실시간 릴레이(교실 공범)는 여전히 잔여 한계 (거리한정 HW 영역).
+- QR 실시간 릴레이(교실 공범)는 여전히 잔여 한계 (거리한정 HW 영역).
 
 ## 로컬 개발 (변경 없음)
 ```powershell
