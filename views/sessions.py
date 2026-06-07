@@ -1,4 +1,4 @@
-"""세션(수업) — 목록·생성·교사화면·코드 API·QR·출석부·열닫기·CSV."""
+"""세션(수업) — 목록·생성·QR 화면·코드 API·출석부·열고닫기·삭제·CSV."""
 import io
 import csv
 
@@ -96,6 +96,14 @@ def toggle(session_id):
     s = _owned_session(session_id)
     db.set_session_open(session_id, not s["open"])
     return redirect(url_for("sessions.roster", session_id=session_id))
+
+
+@bp.route("/session/<int:session_id>/delete", methods=["POST"])
+@require_teacher
+def delete(session_id):
+    _owned_session(session_id)
+    db.delete_session(session_id)
+    return redirect(url_for("sessions.index"))
 
 
 @bp.route("/export/<int:session_id>.csv")

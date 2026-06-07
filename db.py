@@ -387,6 +387,13 @@ def set_session_open(session_id, is_open):
             (1 if is_open else 0, session_id))
 
 
+def delete_session(session_id):
+    """세션 + 해당 출석 기록 삭제."""
+    with get_conn() as conn:
+        _ex(conn, "DELETE FROM attendance WHERE session_id = ?", (session_id,))
+        _ex(conn, "DELETE FROM sessions WHERE id = ?", (session_id,))
+
+
 # --- 학생 (개인 TOTP 등록) --------------------------------------------------
 def upsert_student(student_id, name, secret):
     """신규면 등록, 기존이면 이름만 갱신(secret 유지). secret 은 암호화 저장."""

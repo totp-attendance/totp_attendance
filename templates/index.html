@@ -35,8 +35,11 @@
             {% if s.require_qr %}<span class="badge qr">QR 현장확인</span>{% endif %}
           </td>
           <td class="row" style="gap:6px">
-            <a class="btn ghost" style="padding:6px 12px" href="{{ url_for('sessions.teacher', session_id=s.id) }}">교사 화면</a>
+            <a class="btn ghost" style="padding:6px 12px" href="{{ url_for('sessions.teacher', session_id=s.id) }}">QR</a>
             <a class="btn ghost" style="padding:6px 12px" href="{{ url_for('sessions.roster', session_id=s.id) }}">출석부</a>
+            <form method="post" action="{{ url_for('sessions.delete', session_id=s.id) }}" style="margin:0">
+              <button class="btn danger" style="padding:6px 12px" onclick="return confirm('“{{ s.name }}” 세션과 출석 기록을 삭제할까요?')">삭제</button>
+            </form>
           </td>
         </tr>
       {% endfor %}
@@ -46,7 +49,7 @@
   {% else %}
   <div class="card empty">
     <div class="big">📋</div>
-    아직 세션이 없습니다.<br>위에서 첫 수업 세션을 만들어 보세요.
+    아직 만든 세션이 없습니다.<br>위에서 첫 수업 세션을 만들어 보세요.
   </div>
   {% endif %}
 </main>

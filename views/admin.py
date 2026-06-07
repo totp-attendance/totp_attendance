@@ -27,13 +27,13 @@ def create():
     password = request.form.get("password", "")
     is_admin = 1 if request.form.get("is_admin") else 0
     if not username or not password:
-        return _render(err="아이디·비밀번호를 입력하세요.")
+        return _render(err="아이디와 비밀번호를 입력해 주세요.")
     if len(password) < 4:
         return _render(err="비밀번호는 4자 이상이어야 합니다.")
     tid = db.create_teacher(username, config.hash_pw(password), is_admin)
     if tid is None:
         return _render(err=f"이미 존재하는 아이디입니다: {username}")
-    return _render(msg=f"계정 생성됨: {username}")
+    return _render(msg=f"계정을 생성했습니다: {username}")
 
 
 @bp.route("/admin/<int:teacher_id>/delete", methods=["POST"])
@@ -49,7 +49,7 @@ def delete(teacher_id):
     # 삭제 교사의 세션은 작업 관리자에게 인계 (출석 데이터 보존)
     db.reassign_sessions(teacher_id, current_teacher_id())
     db.delete_teacher(teacher_id)
-    return _render(msg=f"계정 삭제됨: {t['username']} (세션은 본인에게 인계)")
+    return _render(msg=f"계정을 삭제했습니다: {t['username']} (세션은 본인에게 인계)")
 
 
 @bp.route("/admin/enroll-code", methods=["POST"])
@@ -59,8 +59,8 @@ def enroll_code():
     code = request.form.get("code", "").strip()
     db.set_setting("enroll_code", code)
     if code:
-        return _render(msg="자가등록 활성화됨 (등록키 설정).")
-    return _render(msg="자가등록 비활성화됨 (등록키 해제).")
+        return _render(msg="자가등록을 활성화했습니다 (등록키 설정됨).")
+    return _render(msg="자가등록을 비활성화했습니다 (등록키 해제됨).")
 
 
 @bp.route("/admin/<int:teacher_id>/reset", methods=["POST"])
@@ -73,4 +73,4 @@ def reset(teacher_id):
     if len(password) < 4:
         return _render(err="비밀번호는 4자 이상이어야 합니다.")
     db.set_teacher_password(teacher_id, config.hash_pw(password))
-    return _render(msg=f"비밀번호 초기화됨: {t['username']}")
+    return _render(msg=f"비밀번호를 초기화했습니다: {t['username']}")

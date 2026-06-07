@@ -15,10 +15,13 @@
 
   <div class="row" style="margin:14px 0 20px">
     <a class="btn ghost" href="{{ url_for('sessions.export_csv', session_id=s.id) }}">⬇ CSV 내보내기</a>
-    <a class="btn ghost" href="{{ url_for('sessions.teacher', session_id=s.id) }}">교사 화면</a>
+    <a class="btn ghost" href="{{ url_for('sessions.teacher', session_id=s.id) }}">QR</a>
     <div class="spacer"></div>
     <form method="post" action="{{ url_for('sessions.toggle', session_id=s.id) }}" style="margin:0">
-      <button class="btn {{ 'danger' if s.open else 'primary' }}">{{ '세션 닫기' if s.open else '세션 열기' }}</button>
+      <button class="btn ghost">{{ '세션 닫기' if s.open else '세션 열기' }}</button>
+    </form>
+    <form method="post" action="{{ url_for('sessions.delete', session_id=s.id) }}" style="margin:0">
+      <button class="btn danger" onclick="return confirm('“{{ s.name }}” 세션과 출석 기록을 삭제할까요?')">세션 삭제</button>
     </form>
   </div>
 

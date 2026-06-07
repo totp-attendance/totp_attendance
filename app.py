@@ -5,7 +5,7 @@
   db.py            SQLCipher 암호화 저장소
   helpers.py       뷰 공통 유틸 (인증·요청파싱·TOTP·QR)
   views/auth       로그인/로그아웃
-  views/sessions   세션 생성·교사화면·코드·QR·출석부·CSV
+  views/sessions   세션 생성·QR 화면·코드·출석부·삭제·CSV
   views/students   개인 TOTP 등록
   views/checkin    학생 출석
   templates/       Jinja 템플릿

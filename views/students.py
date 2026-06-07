@@ -76,20 +76,20 @@ def register():
         rl_key = ("register", ip)
         if config.is_rate_limited(rl_key):
             return render_template("register.html", enabled=True,
-                                   err="시도가 너무 많습니다. 잠시 후 다시.")
+                                   err="시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.")
         sid = request.form.get("student_id", "").strip()
         name = request.form.get("name", "").strip()
         given = request.form.get("code", "")
         if not (sid and name and given):
             return render_template("register.html", enabled=True,
-                                   err="모든 항목을 입력하세요.")
+                                   err="모든 항목을 입력해 주세요.")
         if not hmac.compare_digest(given, code):
             config.record_fail(rl_key)
             return render_template("register.html", enabled=True,
                                    err="등록키가 올바르지 않습니다.")
         if db.get_student(sid):
             return render_template("register.html", enabled=True,
-                                   err="이미 등록된 학번입니다. 교사에게 문의하세요.")
+                                   err="이미 등록된 학번입니다. 교사에게 문의해 주세요.")
         config.reset_fails(rl_key)
         secret, _ = db.upsert_student(sid, name, pyotp.random_base32())
         # 이 기기(요청 보낸 학생 폰)에 바로 저장

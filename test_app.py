@@ -175,7 +175,7 @@ def test_closed_session_rejected(teacher):
     teacher.post(f"/toggle/{sid}")
     pub = appmod.app.test_client()
     r = pub.post(f"/check/{sid}", data={"student_id": "s1", "code": code_of(secret), "c": config.challenge_token(sid)})
-    assert "닫혔" in r.data.decode()
+    assert "마감" in r.data.decode()
 
 
 # --- 학생 등록 --------------------------------------------------------------
@@ -435,6 +435,27 @@ def test_non_admin_cannot_set_enroll_code(teacher):
     c = _new_teacher(teacher, "prof1")
     assert c.post("/admin/enroll-code",
                   data={"code": "x"}).status_code == 403
+
+
+# --- 세션 삭제 --------------------------------------------------------------
+def test_session_delete_removes_attendance(teacher):
+    secret = enroll(teacher, "s1", "학생1")
+    sid = make_session(teacher)
+    pub = appmod.app.test_client()
+    pub.post(f"/check/{sid}",
+             data={"student_id": "s1", "code": code_of(secret),
+                   "c": config.challenge_token(sid)})
+    assert len(db.list_attendance(sid)) == 1
+    teacher.post(f"/session/{sid}/delete")
+    assert db.get_session(sid) is None
+    assert db.list_attendance(sid) == []
+
+
+def test_session_delete_owner_isolation(teacher):
+    sid = make_session(teacher)              # admin 소유
+    other = _new_teacher(teacher, "prof1")
+    assert other.post(f"/session/{sid}/delete").status_code == 404
+    assert db.get_session(sid) is not None   # 삭제 안 됨
 
 
 # --- 시간표(과목) -----------------------------------------------------------
