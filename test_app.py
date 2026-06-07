@@ -441,9 +441,11 @@ def test_non_admin_cannot_set_enroll_code(teacher):
 def test_timetable_start_creates_and_dedups(teacher):
     me = db.get_teacher_by_username("admin")["id"]
     teacher.post("/timetable/add",
-                 data={"name": "자료구조", "day": "0", "start_t": "10:00",
-                       "end_t": "11:30", "room": "301"})
+                 data={"name": "자료구조", "day": "0", "start_h": "10",
+                       "start_m": "00", "end_h": "11", "end_m": "30",
+                       "room": "301"})
     cid = db.list_courses(me)[0]["id"]
+    assert db.get_course(cid)["start_t"] == "10:00"  # 시·분 조합 확인
     r = teacher.post(f"/timetable/{cid}/start")
     assert r.status_code == 302
     sid = int(r.headers["Location"].rstrip("/").split("/")[-1])

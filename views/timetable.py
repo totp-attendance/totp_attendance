@@ -31,6 +31,15 @@ def _parse_day(v):
         return 0
 
 
+def _hm(h, m):
+    """시·분 드롭다운 값 → 'HH:MM' (둘 다 있어야, 없으면 '')."""
+    h = (h or "").strip()
+    m = (m or "").strip()
+    if h.isdigit() and m.isdigit():
+        return "%02d:%02d" % (int(h), int(m))
+    return ""
+
+
 @bp.route("/timetable")
 @require_teacher
 def index():
@@ -50,8 +59,8 @@ def add():
         abort(400, "과목명 필요")
     db.create_course(current_teacher_id(), name,
                      _parse_day(request.form.get("day")),
-                     request.form.get("start_t", "").strip(),
-                     request.form.get("end_t", "").strip(),
+                     _hm(request.form.get("start_h"), request.form.get("start_m")),
+                     _hm(request.form.get("end_h"), request.form.get("end_m")),
                      request.form.get("room", "").strip())
     return redirect(url_for("timetable.index"))
 
@@ -65,8 +74,8 @@ def edit(course_id):
         abort(400, "과목명 필요")
     db.update_course(course_id, name,
                      _parse_day(request.form.get("day")),
-                     request.form.get("start_t", "").strip(),
-                     request.form.get("end_t", "").strip(),
+                     _hm(request.form.get("start_h"), request.form.get("start_m")),
+                     _hm(request.form.get("end_h"), request.form.get("end_m")),
                      request.form.get("room", "").strip())
     return redirect(url_for("timetable.index"))
 

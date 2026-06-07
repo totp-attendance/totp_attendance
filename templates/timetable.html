@@ -7,9 +7,26 @@
  .tt-col h4.today{background:var(--primary-50);color:var(--primary)}
  .tt-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;font-size:.9rem}
  .tt-card .nm{font-weight:600}
- .tt-card .mt{color:var(--muted);font-size:.8rem;margin:2px 0 8px}
+ .tt-card .mt{color:var(--muted);font-size:.82rem;margin:2px 0 8px}
  .tt-card form{display:inline;margin:0}
+ .tsel{display:inline-flex;align-items:center;gap:4px}
+ .tsel select{padding:8px 6px;font-size:.95rem;border:1.5px solid var(--border-strong);border-radius:8px;background:#fff}
+ .editform select,.editform input{width:100%}
+ .editform .tsel select{width:auto}
 {% endblock %}
+{% macro tsel(prefix, val) %}
+  {% set hh = val[:2] if val else '' %}{% set mm = val[3:5] if val else '' %}
+  <span class="tsel">
+    <select name="{{ prefix }}_h">
+      <option value="">--</option>
+      {% for h in range(25) %}<option value="{{ '%02d'|format(h) }}" {{ 'selected' if '%02d'|format(h) == hh else '' }}>{{ '%02d'|format(h) }}</option>{% endfor %}
+    </select>:
+    <select name="{{ prefix }}_m">
+      <option value="">--</option>
+      {% for m in range(0, 60, 5) %}<option value="{{ '%02d'|format(m) }}" {{ 'selected' if '%02d'|format(m) == mm else '' }}>{{ '%02d'|format(m) }}</option>{% endfor %}
+    </select>
+  </span>
+{% endmacro %}
 {% block body %}
 {% include "_topbar.html" %}
 <main class="container wide">
@@ -46,7 +63,7 @@
     <p class="card-title">수업 추가</p>
     <form method="post" action="{{ url_for('timetable.add') }}">
       <div class="row" style="align-items:flex-end">
-        <div class="field" style="flex:2;margin:0">
+        <div class="field" style="flex:2;min-width:160px;margin:0">
           <label>과목명</label>
           <input class="input" name="name" placeholder="예: 자료구조" required>
         </div>
@@ -57,12 +74,10 @@
           </select>
         </div>
         <div class="field" style="margin:0">
-          <label>시작</label>
-          <input class="input" type="time" name="start_t" style="width:120px">
+          <label>시작</label><br>{{ tsel('start', '') }}
         </div>
         <div class="field" style="margin:0">
-          <label>종료</label>
-          <input class="input" type="time" name="end_t" style="width:120px">
+          <label>종료</label><br>{{ tsel('end', '') }}
         </div>
         <div class="field" style="margin:0">
           <label>강의실</label>
@@ -94,13 +109,13 @@
           </form>
           <details style="margin-top:6px">
             <summary class="muted small" style="cursor:pointer">수정</summary>
-            <form method="post" action="{{ url_for('timetable.edit', course_id=c.id) }}" class="stack" style="margin-top:8px">
+            <form method="post" action="{{ url_for('timetable.edit', course_id=c.id) }}" class="editform stack" style="margin-top:8px">
               <input class="input" name="name" value="{{ c.name }}" required style="padding:7px 9px">
               <select class="input" name="day" style="padding:7px 9px">
                 {% for dn in days %}<option value="{{ loop.index0 }}" {{ 'selected' if loop.index0 == c.day else '' }}>{{ dn }}</option>{% endfor %}
               </select>
-              <input class="input" type="time" name="start_t" value="{{ c.start_t or '' }}" style="padding:7px 9px">
-              <input class="input" type="time" name="end_t" value="{{ c.end_t or '' }}" style="padding:7px 9px">
+              <div><span class="muted small">시작</span> {{ tsel('start', c.start_t) }}</div>
+              <div><span class="muted small">종료</span> {{ tsel('end', c.end_t) }}</div>
               <input class="input" name="room" value="{{ c.room or '' }}" placeholder="강의실" style="padding:7px 9px">
               <button class="btn primary" style="padding:7px 9px;font-size:.85rem">저장</button>
             </form>
