@@ -93,8 +93,7 @@ def reset_fails(key):
 # --- 회전 QR 챌린지 (현장 증명) ---------------------------------------------
 # 교실 화면에만 뜨는, 짧게 만료되는 챌린지. HMAC 으로 위조 불가 + 시간 바인딩.
 # 원격 학생은 현재 화면의 QR 을 못 봐서 유효 챌린지를 얻을 수 없음.
-import hmac
-import hashlib
+import hashlib  # hmac 은 상단에서 이미 import
 
 QR_ROTATE_SEC = int(os.environ.get("ATTENDANCE_QR_ROTATE_SEC", "10"))
 
