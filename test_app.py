@@ -21,6 +21,7 @@ def temp_db(tmp_path):
     config.TEACHER_PASSWORD = PW
     config._fail_log.clear()
     config.ALLOWED_SUBNETS = []
+    config.TRUST_PROXY = False
     yield
 
 
@@ -70,6 +71,42 @@ def test_wrong_password_rejected(client):
 def test_login_success(client):
     r = client.post("/login", data={"password": PW})
     assert r.status_code == 302
+
+
+def test_login_rate_limit(client):
+    """교사 로그인 무차별 대입 → 레이트리밋. 한도 후 올바른 비번도 거부."""
+    for _ in range(config.RATE_MAX_FAILS):
+        client.post("/login", data={"password": "wrong"})
+    r = client.post("/login", data={"password": "wrong"})
+    assert "너무 많습니다" in r.data.decode()
+    r2 = client.post("/login", data={"password": PW})  # 잠긴 동안엔 정답도 막힘
+    assert "너무 많습니다" in r2.data.decode()
+
+
+# --- X-Forwarded-For 신뢰 게이팅 --------------------------------------------
+def test_xff_spoof_ignored_by_default(teacher):
+    """TRUST_PROXY off: 위조 XFF 무시 → remote_addr 기준 IP 제한 적용."""
+    secret = enroll(teacher, "s1", "학생1")
+    sid = make_session(teacher)
+    config.ALLOWED_SUBNETS = ["10.0."]
+    pub = appmod.app.test_client()
+    r = pub.post(f"/check/{sid}",
+                 data={"student_id": "s1", "code": code_of(secret)},
+                 headers={"X-Forwarded-For": "10.0.0.5"})  # 위조 시도
+    assert "허용되지 않은 네트워크" in r.data.decode()
+
+
+def test_xff_trusted_when_proxy_enabled(teacher):
+    """TRUST_PROXY on: 신뢰 프록시 뒤 → XFF 첫 hop 사용."""
+    secret = enroll(teacher, "s1", "학생1")
+    sid = make_session(teacher)
+    config.ALLOWED_SUBNETS = ["10.0."]
+    config.TRUST_PROXY = True
+    pub = appmod.app.test_client()
+    r = pub.post(f"/check/{sid}",
+                 data={"student_id": "s1", "code": code_of(secret)},
+                 headers={"X-Forwarded-For": "10.0.0.5"})
+    assert "출석 완료" in r.data.decode()
 
 
 # --- 개인 TOTP 출석 ---------------------------------------------------------

@@ -5,6 +5,8 @@ from functools import wraps
 import qrcode
 from flask import request, redirect, url_for, session, Response
 
+import config
+
 # 개인 TOTP 표준 주기 (브라우저 인증기 = attendance.js 와 동일, 30초)
 PERSONAL_INTERVAL = 30
 
@@ -20,10 +22,13 @@ def require_teacher(view):
 
 
 def client_ip():
-    """프록시 뒤면 X-Forwarded-For 첫 IP, 아니면 remote_addr."""
-    fwd = request.headers.get("X-Forwarded-For", "")
-    if fwd:
-        return fwd.split(",")[0].strip()
+    """클라 IP. 기본은 remote_addr 만 신뢰.
+    X-Forwarded-For 는 클라가 위조 가능하므로 TRUST_PROXY=1 (신뢰 리버스프록시
+    뒤) 일 때만 첫 hop 을 사용. 아니면 무시 → IP 제한·레이트리밋·감사 위조 방지."""
+    if config.TRUST_PROXY:
+        fwd = request.headers.get("X-Forwarded-For", "")
+        if fwd:
+            return fwd.split(",")[0].strip()
     return request.remote_addr or ""
 
 

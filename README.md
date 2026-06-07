@@ -71,6 +71,7 @@ epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 →
 | `ATTENDANCE_SECRET_KEY` | Flask 세션 쿠키 서명 | 임시 랜덤(재시작 시 로그인 풀림) |
 | `ATTENDANCE_TEACHER_PASSWORD` | 교사 로그인 비번 | `admin` + 경고 |
 | `ATTENDANCE_ALLOWED_SUBNETS` | 출석 허용 IP 대역(쉼표, 예: `192.168.0.,10.0.`) | 제한 없음 |
+| `ATTENDANCE_TRUST_PROXY` | `1` 이면 `X-Forwarded-For` 신뢰(신뢰 리버스프록시 뒤에서만) | off (위조 방지, remote_addr 만) |
 | `ATTENDANCE_QR_ROTATE_SEC` | 회전 QR 챌린지 갱신 주기(초) | `10` |
 | `ATTENDANCE_RATE_MAX_FAILS` | 레이트리밋 실패 한도 | `5` |
 | `ATTENDANCE_RATE_WINDOW_SEC` | 레이트리밋 윈도우(초) | `60` |
@@ -82,9 +83,11 @@ epoch만 허용. 회전 QR 이미지(`/qrc/<id>`)는 교사 로그인 필요 →
 - **DB 암호화**: SQLCipher AES-256, DB 파일 전체 암호화 — 일반 `sqlite3`로 못 엶.
   키 분실 = 복구 불가. 키를 코드/git에 넣지 말 것.
 - **교사 인증**: 모든 교사 라우트 로그인 필요. `/check`·`/qr`만 공개. `/api/code`도 보호 → 외부서 코드 못 읽음.
-- **무차별 대입 방지**: `(session_id, IP, 학번)`당 슬라이딩 윈도우 레이트리밋
-  (공용 IP 라도 한 명 실패가 반 전체를 잠그지 않음).
-- **네트워크 제한**: `ATTENDANCE_ALLOWED_SUBNETS` IP 대역 (프록시 뒤면 `X-Forwarded-For` 참조).
+- **무차별 대입 방지**: 출석은 `(session_id, IP, 학번)`, 교사 로그인은 `("login", IP)`
+  당 슬라이딩 윈도우 레이트리밋 (공용 IP 라도 한 명 실패가 반 전체를 잠그지 않음).
+- **네트워크 제한**: `ATTENDANCE_ALLOWED_SUBNETS` IP 대역. `X-Forwarded-For` 는
+  **기본 무시**(클라 위조 가능) — 신뢰 리버스프록시 뒤에서 `ATTENDANCE_TRUST_PROXY=1`
+  일 때만 사용. 안 그러면 `remote_addr` 만 신뢰 → IP제한·레이트리밋·감사 위조 방지.
 - **상수시간 비번 비교**: `hmac.compare_digest`.
 - **CSRF 방어**: 세션쿠키 `SameSite=Strict` + `HttpOnly` (HTTPS 면 `Secure`) →
   악성사이트가 교사 세션으로 세션생성·학생삭제 강제 불가.

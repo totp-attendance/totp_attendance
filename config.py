@@ -47,6 +47,12 @@ def check_password(candidate):
     return hmac.compare_digest(candidate, TEACHER_PASSWORD)
 
 
+# --- 프록시 신뢰 (X-Forwarded-For) ------------------------------------------
+# 기본 OFF: X-Forwarded-For 는 클라가 위조 가능 → 그대로 믿으면 ALLOWED_SUBNETS
+# 우회·레이트리밋 회피·감사 IP 위조 가능. 신뢰 리버스프록시(nginx 등) 뒤에서만 1.
+TRUST_PROXY = os.environ.get("ATTENDANCE_TRUST_PROXY") == "1"
+
+
 # --- 학생 출석 허용 IP 대역 --------------------------------------------------
 _subnets_raw = os.environ.get("ATTENDANCE_ALLOWED_SUBNETS", "").strip()
 ALLOWED_SUBNETS = [p.strip() for p in _subnets_raw.split(",") if p.strip()]

@@ -131,6 +131,7 @@ no auto-reload) before any live/E2E check.
 | `ATTENDANCE_SECRET_KEY` | Flask session signing | random per process (logins drop on restart) |
 | `ATTENDANCE_TEACHER_PASSWORD` | teacher login | `admin` + warning |
 | `ATTENDANCE_ALLOWED_SUBNETS` | comma IP-prefix allowlist (e.g. `192.168.0.,10.0.`) | no restriction |
+| `ATTENDANCE_TRUST_PROXY` | `1` → trust `X-Forwarded-For` (only behind a trusted reverse proxy) | off (use remote_addr only) |
 | `ATTENDANCE_QR_ROTATE_SEC` | rotating-QR challenge period | `10` |
 | `ATTENDANCE_RATE_MAX_FAILS` / `_WINDOW_SEC` | rate limiter | `5` / `60` |
 | `ATTENDANCE_SSL` | `1` → adhoc HTTPS | off |
@@ -144,8 +145,11 @@ no auto-reload) before any live/E2E check.
 - **Teacher auth**: all teacher routes require login. Only `/check`, `/qr`, `/setup`
   are public. `/qrc` (challenge QR) and `/api/code` are login-gated so challenges/
   codes can't be pulled externally.
-- **Rate limit**: sliding window keyed on `(session_id, ip, student_id)` — a shared
-  public IP won't lock out the whole class.
+- **Rate limit**: sliding window — check-in keyed on `(session_id, ip, student_id)`,
+  teacher login keyed on `("login", ip)`. A shared public IP won't lock out the class.
+- **X-Forwarded-For**: ignored by default (client-spoofable) — `client_ip()` uses
+  `remote_addr` unless `ATTENDANCE_TRUST_PROXY=1` (behind a trusted reverse proxy).
+  Prevents IP-allowlist bypass, rate-limit evasion, and audit-IP forgery.
 - **CSRF**: session cookie `SameSite=Strict` + `HttpOnly` (+ `Secure` when SSL).
 - **Attendance-status oracle blocked**: duplicate check runs *after* TOTP verify, so
   you can't probe whether a student is present without their code.
